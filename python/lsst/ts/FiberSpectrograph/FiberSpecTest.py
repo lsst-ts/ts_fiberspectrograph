@@ -1,12 +1,9 @@
-#!/usr/bin/env python3
-import os
-import platform
-import sys
 import time
-from fibspec import *
+from lsst.ts.FiberSpectrograph.fibspec import MeasConfigType, DeviceConfigType, \
+    AVS
 
 
-class FiberSpectrograph(object):
+class FiberSpecTest(object):
 
     def __init__(self):
         self.serialNumber = 0
@@ -25,14 +22,14 @@ class FiberSpectrograph(object):
         print(f"getList() -> {a} {b}")
         self.serialNumber = str(b[0].SerialNumber.decode("utf-8"))
         print(f"SerialNumber -> {self.serialNumber}")
-        self.dev_handle=self.f.activate(b[0])
+        self.dev_handle = self.f.activate(b[0])
         print(f"devHandle -> {self.dev_handle}")
-        self.devcon=DeviceConfigType
-        ret=self.f.getParameter(self.dev_handle,0)
+        self.devcon = DeviceConfigType
+        ret = self.f.getParameter(self.dev_handle, 0)
         print(f"AVS_GetParameter(self.dev_handle, 0) -> {ret}")
 
     def closeComm(self):
-#        callbackclass.callback(self, 0, 0)
+        # callbackclass.callback(self, 0, 0)
         pass
 
     def captureSpectImage(self, m_IntegrationTime, m_NrAverages, nummeas):
@@ -61,16 +58,15 @@ class FiberSpectrograph(object):
         print(f"prepareMeasure({self.dev_handle}, measconfig) -> {ret}")
         ret = self.f.measure(self.dev_handle, 1)
         print(f"measure({(self.dev_handle,1)} -> {ret}")
-        dataready = False    
-        while (dataready == False):
-            dataready = (self.f.pollScan(self.dev_handle) == True)
+        dataready = False
+        while (dataready is False):
+            dataready = (self.f.pollScan(self.dev_handle) is True)
             print(f"dataready is -> {dataready}")
             time.sleep(0.001)
-        if dataready == True:
-               self.handle_newdata()
+        if (dataready is True):
+            self.handle_newdata()
 
         return
-
 
     def stopMeas(self):
         ret = self.f.stopMeasure(self.dev_handle)
@@ -83,10 +79,5 @@ class FiberSpectrograph(object):
         print("The first 10 measurement points are %s." % measurement[:10])
         ret, self.spectralData, intensity = self.f.getScopeData(self.dev_handle, 4096)
         print("The first 10 intensity points are %s." % intensity[:10])
-   
+
         return
-
-
- 
-
-

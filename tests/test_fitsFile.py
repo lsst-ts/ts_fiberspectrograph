@@ -5,14 +5,13 @@ import os.path
 from lsst.utils import getPackageDir
 
 from lsst.ts.FiberSpectrograph.customFits.PythonFits import PythonFits
-#NEED BETTER TESTING...
 
 
 class TestFitsFile(unittest.TestCase):
 
     def setUp(self):
         modulePath = getPackageDir("ts_FiberSpectrograph")
-        dataFolder = os.path.join(modulePath, "tests", "testData") 
+        dataFolder = os.path.join(modulePath, "tests", "testData")
         self.fitsFile = PythonFits(dataFolder, "testFits", separator='/')
 
     def test_addDataAndCloseFile(self):
