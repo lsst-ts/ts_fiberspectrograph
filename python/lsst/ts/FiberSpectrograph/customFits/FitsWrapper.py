@@ -2,10 +2,7 @@ from astropy.io import fits
 from os import path
 from hashlib import md5
 
-from lsst.ts.FiberSpectrograph.customFits.IPythonFits import IPythonFits
-
-
-class PythonFits(IPythonFits):
+class PythonFits(object):
 
     def __init__(self, path, filename, separator='/'):
         self.path = path
@@ -52,8 +49,3 @@ class PythonFits(IPythonFits):
 if __name__ == "__main__":
 
     pass
-    # fitsFile = PythonFits(path.getcwd(), "testFits",separator='/')
-    # fitsFile.openFile()
-    # fitsFile.addHeader("Key1",5,"comment")
-    # fitsFile.addHeader("Key2", 15, "comment2")
-    # fitsFile.saveToFile()
