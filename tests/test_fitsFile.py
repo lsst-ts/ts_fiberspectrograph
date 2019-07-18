@@ -4,7 +4,7 @@ import os.path
 
 from lsst.utils import getPackageDir
 
-from lsst.ts.FiberSpectrograph.customFits.PythonFits import PythonFits
+from lsst.ts.FiberSpectrograph.customFits.FitsWrapper import FitsWrapper
 
 
 class TestFitsFile(unittest.TestCase):
@@ -12,7 +12,7 @@ class TestFitsFile(unittest.TestCase):
     def setUp(self):
         modulePath = getPackageDir("ts_FiberSpectrograph")
         dataFolder = os.path.join(modulePath, "tests", "testData")
-        self.fitsFile = PythonFits(dataFolder, "testFits", separator='/')
+        self.fitsFile = FitsWrapper(dataFolder, "testFits", separator='/')
 
     def test_addDataAndCloseFile(self):
         data = np.arange(100.0)

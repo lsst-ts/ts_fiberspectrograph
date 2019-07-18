@@ -1,4 +1,6 @@
 import time
+import asyncio
+
 from lsst.ts.FiberSpectrograph.fibspec import MeasConfigType, DeviceConfigType, \
     AVS
 
@@ -32,7 +34,7 @@ class FiberSpecTest(object):
         # callbackclass.callback(self, 0, 0)
         pass
 
-    def captureSpectImage(self, m_IntegrationTime, m_NrAverages, nummeas):
+    async def captureSpectImage(self, m_IntegrationTime, m_NrAverages, nummeas):
         ret = self.f.useHighResADC(self.dev_handle, True)
         print(f"useHighResADC(self.dev_handle, True) -> {ret}")
         measconfig = MeasConfigType()
@@ -62,7 +64,7 @@ class FiberSpecTest(object):
         while (dataready is False):
             dataready = (self.f.pollScan(self.dev_handle) is True)
             print(f"dataready is -> {dataready}")
-            time.sleep(0.001)
+            await asyncio.sleep(0.1)
         if (dataready is True):
             self.handle_newdata()
 
