@@ -2,6 +2,7 @@ from astropy.io import fits
 from os import path
 from hashlib import md5
 
+
 class PythonFits(object):
 
     def __init__(self, path, filename, separator='/'):
