@@ -44,16 +44,28 @@ class FiberSpectrograph(ConfigurableCsc):
         """
         return np.uint8(self._detailed_state)
 
-    async def begin_enable(self):
+    async def start(self):
+        await super().start()
+        # Instantiate FiberSpec() object
         self.model = FiberSpec()
+        # _init_ is run on start and device handle serial number etc are obtained.
+        FiberSpec.__init__()
+
+    async def begin_enable(self):
+        pass
 
     async def do_captureSpectImage(self, data):
         self.assert_enable("captureSpectImage")
-        self.assert_detailed("NOTIMAGING")
+        self.assert_detailed("captureSpectImage")
+        self._detailed_state = DetailedState.IMAGING
         await self.model.captureSpectImage()
 
-    def assert_detailed(self):
-        pass
+    def assert_detailed(self, action):
+        """Assert that an action that requires NotImaging Detailed state
+        can be run.
+        """
+        if self.detailed_state != DetailedState.NOTIMAGING:
+            raise self.base.ExpectedError(f"{action} not allowed in state {self.detailed_state!r}")
 
     def get_config_pkg():
         return "ts_config_attcs"

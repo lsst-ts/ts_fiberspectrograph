@@ -25,18 +25,27 @@ class FiberSpec(object):
         # Number of usb FiberSpectrograph connected
         NumDevices = self.f.getNumberOfDevices()
         print(f"getNumberOfDevices() -> {NumDevices}")
+
         # List of FiberSpectrograph
         a, b = self.f.getList()
         print(f"getList() -> {a} {b}")
+
         # Serial Number of 1st FiberSpectrograph from the list
         self.serialNumber = str(b[0].SerialNumber.decode("utf-8"))
         print(f"SerialNumber -> {self.serialNumber}")
+
         # Activate 1st FiberSpectrograph and get the handle of the device
         self.dev_handle = self.f.activate(b[0])
         print(f"devHandle -> {self.dev_handle}")
+
         self.devcon = DeviceConfigType
         ret = self.f.getParameter(self.dev_handle, 0)
         print(f"AVS_GetParameter(self.dev_handle, 0) -> {ret}")
+
+    def _checkErrorConditions(self):
+        # Raise error if device handle is invalid and move to Fault state
+        if (self.dev_handle <= 0 or self.NumDevices <= 0):
+            raise ConnectionError("Device is OFF or lost connection to device")
 
     def closeComm(self):
         """Close communication and release all internal data storage
@@ -47,16 +56,18 @@ class FiberSpec(object):
         self.f.done()
         return
 
-    async def captureSpectImage(self, m_IntegrationTime):
+    async def captureSpectImage(self, integrationTime, imageType, lamp):
         """Capture Spectrum for the integration time specified.
         Capture Spectrum for the integration time specified.
         """
+        self._checkErrorConditions()
+
         ret = self.f.useHighResADC(self.dev_handle, True)
         print(f"useHighResADC(self.dev_handle, True) -> {ret}")
         measconfig = MeasConfigType()
         measconfig.m_StartPixel = 0
         measconfig.m_StopPixel = 2047
-        measconfig.m_IntegrationTime = m_IntegrationTime
+        measconfig.m_IntegrationTime = integrationTime
         measconfig.m_IntegrationDelay = 0
         measconfig.m_NrAverages = 1
         measconfig.m_CorDynDark_m_Enable = 0  # nesting of types does NOT work!!
@@ -72,21 +83,23 @@ class FiberSpec(object):
         measconfig.m_Control_m_LaserWidth = 0
         measconfig.m_Control_m_LaserWaveLength = 0.0
         measconfig.m_Control_m_StoreToRam = 0
+
         # Prepares measurement on the spectrometer using the specified
         # measurement configuration.
         ret = self.f.prepareMeasure(self.dev_handle, measconfig)
         print(f"prepareMeasure({self.dev_handle}, measconfig) -> {ret}")
-        # Prepares measurement on the spectrometer using the specified
-        # measurement configuration.
+
+        # Starts measurement on the spectrometer
         ret = self.f.measure(self.dev_handle, 1)
         print(f"measure({(self.dev_handle,1)} -> {ret}")
+
         dataready = False
         while (dataready is False):
             dataready = (self.f.pollScan(self.dev_handle) is True)
             print(f"dataready is -> {dataready}")
             await asyncio.sleep(0.1)
         if (dataready is True):
-            self.handle_newdata()
+            self.handle_newdata(self.imageType, self.lamp)
 
         return
 
@@ -104,7 +117,7 @@ class FiberSpec(object):
         ret = self.f.stopMeasure(self.dev_handle)
         return ret
 
-    def handle_newdata(self):
+    def handle_newdata(self, imageType, lamp):
         """After Capturing spectrum this method is used to get Wavelength data
         and intensity data
         PollScan is used to determine if the capture spectrum is complete.
