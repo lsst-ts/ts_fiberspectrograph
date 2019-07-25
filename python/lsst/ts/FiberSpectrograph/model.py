@@ -1,5 +1,8 @@
-# import time
+import time
 import asyncio
+import numpy as np
+from astropy.io import fits
+import logging
 
 from lsst.ts.FiberSpectrograph.fibspec import MeasConfigType, DeviceConfigType, \
     AVS
@@ -21,26 +24,32 @@ class FiberSpec(object):
         self.waveLength = [0.0] * 4096
         self.f = AVS()
         self.f.init(0)
-        print(f"init(0) -> {self.f.init(0)}")
+        # Logfile name is set to log concatenated with current time in format
+        # specified below
+        timestr = time.strftime("%Y%m%d-%H%M%S")
+        logfile = "log"+timestr+".txt"
+        logging.basicConfig(filename=logfile, level=logging.DEBUG, format='%(asctime)s \
+            - %(levelname)s - %(message)s')
+        logging.debug(f"init(0) -> {self.f.init(0)}")
         # Number of usb FiberSpectrograph connected
         NumDevices = self.f.getNumberOfDevices()
-        print(f"getNumberOfDevices() -> {NumDevices}")
+        logging.debug(f"getNumberOfDevices() -> {NumDevices}")
 
         # List of FiberSpectrograph
         a, b = self.f.getList()
-        print(f"getList() -> {a} {b}")
+        logging.debug(f"getList() -> {a} {b}")
 
         # Serial Number of 1st FiberSpectrograph from the list
         self.serialNumber = str(b[0].SerialNumber.decode("utf-8"))
-        print(f"SerialNumber -> {self.serialNumber}")
+        logging.debug(f"SerialNumber -> {self.serialNumber}")
 
         # Activate 1st FiberSpectrograph and get the handle of the device
         self.dev_handle = self.f.activate(b[0])
-        print(f"devHandle -> {self.dev_handle}")
+        logging.debug(f"devHandle -> {self.dev_handle}")
 
         self.devcon = DeviceConfigType
         ret = self.f.getParameter(self.dev_handle, 0)
-        print(f"AVS_GetParameter(self.dev_handle, 0) -> {ret}")
+        logging.debug(f"AVS_GetParameter(self.dev_handle, 0) -> {ret}")
 
     def _checkErrorConditions(self):
         # Raise error if device handle is invalid and move to Fault state
@@ -62,8 +71,13 @@ class FiberSpec(object):
         """
         self._checkErrorConditions()
 
+        hdu = fits.ImageHDU()
+        hdu.header['INTTIME'] = integrationTime
+        hdu.header['IMGTYPE'] = imageType
+        hdu.header['LIGHTUSED'] = lamp
+
         ret = self.f.useHighResADC(self.dev_handle, True)
-        print(f"useHighResADC(self.dev_handle, True) -> {ret}")
+        logging.debug(f"useHighResADC(self.dev_handle, True) -> {ret}")
         measconfig = MeasConfigType()
         measconfig.m_StartPixel = 0
         measconfig.m_StopPixel = 2047
@@ -87,16 +101,16 @@ class FiberSpec(object):
         # Prepares measurement on the spectrometer using the specified
         # measurement configuration.
         ret = self.f.prepareMeasure(self.dev_handle, measconfig)
-        print(f"prepareMeasure({self.dev_handle}, measconfig) -> {ret}")
+        logging.debug(f"prepareMeasure({self.dev_handle}, measconfig) -> {ret}")
 
         # Starts measurement on the spectrometer
         ret = self.f.measure(self.dev_handle, 1)
-        print(f"measure({(self.dev_handle,1)} -> {ret}")
+        logging.debug(f"measure({(self.dev_handle,1)} -> {ret}")
 
         dataready = False
         while (dataready is False):
             dataready = (self.f.pollScan(self.dev_handle) is True)
-            print(f"dataready is -> {dataready}")
+            logging.debug(f"dataready is -> {dataready}")
             await asyncio.sleep(0.1)
         if (dataready is True):
             self.handle_newdata(self.imageType, self.lamp)
@@ -126,13 +140,14 @@ class FiberSpec(object):
         getLambda and getScopeData is used to get the wavelength data and
         intensity of light respectively.
         """
-        print("In handle_newdata")
+        logging.debug("In handle_newdata")
         # Get Wavelength data for pixel index 0 to 4095
         ret, measurement = self.f.getLambda(self.dev_handle, 4096)
-        print(f"AVS_getLambda data -> {ret}")
-        print("The first 10 measurement points are %s." % measurement[:10])
+        self.hdu.data = np.array(measurement)
+        logging.debug(f"AVS_getLambda data -> {ret}")
+        logging.debug("The first 10 measurement points are %s." % measurement[:10])
         # Get intensity of measured light for pixel index 0 to 4095
         ret, self.spectralData, intensity = self.f.getScopeData(self.dev_handle, 4096)
-        print("The first 10 intensity points are %s." % intensity[:10])
+        logging.debug("The first 10 intensity points are %s." % intensity[:10])
 
         return
