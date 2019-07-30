@@ -48,7 +48,8 @@ class FiberSpectrograph(ConfigurableCsc):
         await super().start()
         # Instantiate FiberSpec() object
         self.model = FiberSpec()
-        # _init_ is run on start and device handle serial number etc are obtained.
+        # _init_ is run on start and device handle serial number etc are
+        # obtained.
         FiberSpec.__init__()
 
     async def begin_enable(self):
@@ -58,7 +59,10 @@ class FiberSpectrograph(ConfigurableCsc):
         self.assert_enable("captureSpectImage")
         self.assert_detailed("captureSpectImage")
         self._detailed_state = DetailedState.IMAGING
-        await self.model.captureSpectImage()
+        if self.integrationTime < 0 or self.integrationTime > 60:
+            raise self.base.ExpectedError("Integration time is too long or invalid")
+        else:
+            await self.model.captureSpectImage()
 
     def assert_detailed(self, action):
         """Assert that an action that requires NotImaging Detailed state

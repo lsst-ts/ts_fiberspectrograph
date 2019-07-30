@@ -4,6 +4,10 @@ import numpy as np
 from astropy.io import fits
 import logging
 
+import pathlib
+
+from lsst.utils import getPackageDir
+
 from lsst.ts.FiberSpectrograph.fibspec import MeasConfigType, DeviceConfigType, \
     AVS
 
@@ -24,10 +28,16 @@ class FiberSpec(object):
         self.waveLength = [0.0] * 4096
         self.f = AVS()
         self.f.init(0)
+
+        self.modulePath = getPackageDir("ts_FiberSpectrograph")
+        self.dataFolder = pathlib.Path(self.modulePath).joinpath("fits", "data")
+        # self.folderString = self.dataFolder.as_posix()
+
         # Logfile name is set to log concatenated with current time in format
         # specified below
-        timestr = time.strftime("%Y%m%d-%H%M%S")
-        logfile = "log"+timestr+".txt"
+        self.timestr = time.strftime("%Y%m%d-%H%M%S")
+
+        logfile = "log"+self.timestr+".txt"
         logging.basicConfig(filename=logfile, level=logging.DEBUG, format='%(asctime)s \
             - %(levelname)s - %(message)s')
         logging.debug(f"init(0) -> {self.f.init(0)}")
@@ -71,17 +81,21 @@ class FiberSpec(object):
         """
         self._checkErrorConditions()
 
-        hdu = fits.ImageHDU()
-        hdu.header['INTTIME'] = integrationTime
-        hdu.header['IMGTYPE'] = imageType
-        hdu.header['LIGHTUSED'] = lamp
+        self.fitsFilename = "Spectrum"+imageType+lamp+self.timestr+".fits"
+        self.fitsFilePath = pathlib.Path(self.dataFolder.joinpath(self.fitsFilename))
+
+        self.hdr = fits.ImageHDU()
+        self.hdr.header['INTTIME'] = integrationTime
+        self.hdr.header['IMGTYPE'] = imageType
+        self.hdr.header['LIGHTUSED'] = lamp
+        self.primary_hdu = fits.PrimaryHDU(header=self.hdr)
 
         ret = self.f.useHighResADC(self.dev_handle, True)
         logging.debug(f"useHighResADC(self.dev_handle, True) -> {ret}")
         measconfig = MeasConfigType()
         measconfig.m_StartPixel = 0
         measconfig.m_StopPixel = 2047
-        measconfig.m_IntegrationTime = integrationTime
+        measconfig.m_IntegrationTime = integrationTime*1000
         measconfig.m_IntegrationDelay = 0
         measconfig.m_NrAverages = 1
         measconfig.m_CorDynDark_m_Enable = 0  # nesting of types does NOT work!!
@@ -143,11 +157,12 @@ class FiberSpec(object):
         logging.debug("In handle_newdata")
         # Get Wavelength data for pixel index 0 to 4095
         ret, measurement = self.f.getLambda(self.dev_handle, 4096)
-        self.hdu.data = np.array(measurement)
+        fits.append(self.dataFolder, measurement, self.primary_hdu)
         logging.debug(f"AVS_getLambda data -> {ret}")
         logging.debug("The first 10 measurement points are %s." % measurement[:10])
         # Get intensity of measured light for pixel index 0 to 4095
         ret, self.spectralData, intensity = self.f.getScopeData(self.dev_handle, 4096)
+        fits.append(self.dataFolder, intensity)
         logging.debug("The first 10 intensity points are %s." % intensity[:10])
 
         return

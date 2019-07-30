@@ -8,7 +8,7 @@ properties:
  fitsrfilepath:
     description: relative path of folder on disk where fits file will be stored relative to the root of module
     type: string
-    default: "fits/spectrum"
+    default: "fits/data"
 required:
   - fitsrfilepath
 additionalProperties: false
