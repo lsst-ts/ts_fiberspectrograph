@@ -1,6 +1,6 @@
 import ctypes
 import enum
-
+import struct
 
 AVS_SERIAL_LEN = 10
 USER_ID_LEN = 64
@@ -49,6 +49,17 @@ class AvsIdentityType(ctypes.Structure):
     _fields_ = [("SerialNumber", ctypes.c_char * AVS_SERIAL_LEN),
                 ("UserFriendlyName", ctypes.c_char * USER_ID_LEN),
                 ("Status", ctypes.c_char)]
+
+    def __repr__(self):
+        serial = self.SerialNumber.decode('ascii')
+        name = self.UserFriendlyName.decode('ascii')
+        status = struct.unpack('B', self.Status)[0]
+        return f'AvaIdentity("{serial}", "{name}", {status})'
+
+    def __eq__(self, other):
+        return (self.SerialNumber == other.SerialNumber and
+                self.UserFriendlyName == other.UserFriendlyName and
+                self.Status == other.Status)
 
 
 class MeasConfigType(ctypes.Structure):
@@ -143,6 +154,7 @@ class DeviceConfigType(ctypes.Structure):
 
 
 class AVS:
+    INVALID_AVS_HANDLE_VALUE = 1000
 
     def __init__(self):
         self.lib = ctypes.CDLL("/usr/local/lib/libavs.so.0.2.0")
