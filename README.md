@@ -22,7 +22,7 @@ and then reload the udev rules:
 
 That should make the device usable by anyone in that specified GROUP.
 
-A useful test that the above rule actually triggers when the device is plugged in (i.e. checking for typos) is to run this command and look for the above rule in the output:
+A useful test that the above rule actually triggers when the device is plugged in (i.e. checking for typos) is to run this command (possibly changing the device identifier number at the end to match where your device is attached: use `lsusb` to find that) and look for the above rule in the output:
 
     udevadm test /devices/pci0000:00/0000:00:14.0/usb1/1-4
 
