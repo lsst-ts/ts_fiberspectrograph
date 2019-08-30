@@ -22,7 +22,10 @@
 import unittest
 import unittest.mock
 
-from lsst.ts.FiberSpectrograph import fibspec, FiberSpectrograph
+from lsst.ts.FiberSpectrograph import FiberSpectrograph
+from lsst.ts.FiberSpectrograph import AvsReturnCode
+from lsst.ts.FiberSpectrograph import AvsIdentity
+from lsst.ts.FiberSpectrograph import DeviceConfig
 
 
 class TestFiberSpectrograph(unittest.TestCase):
@@ -44,26 +47,19 @@ class TestFiberSpectrograph(unittest.TestCase):
         # DeviceStatus (char): 0=unknown, 1=available, 2=in use by this,
         # 3=in use by other, >3 = irrelevant to USB
         status = 0x01
-        self.id0 = fibspec.AvsIdentityType(bytes(str(self.serial_number), "ascii"), name, status)
+        self.id0 = AvsIdentity(bytes(str(self.serial_number), "ascii"), name, status)
 
         def mock_getList(a_listSize, a_pRequiredSize, a_pList):
-            """`AVS_GetList` either fills pRequiredSize or pList, depending
-            on whether listSize is 0, or the number of devices."""
-            if a_listSize == 0:
-                a_pRequiredSize[0] = self.n_devices * fibspec.AVS_IDENTITY_SIZE
-            else:
-                a_pList[0] = self.id0
+            """Pretend only one device is connected, and that the correct
+            amount of space was allocated for the list."""
+            a_pList[0] = self.id0
             return self.n_devices
 
         def mock_getParameter(handle, a_Size, a_pRequiredSize, a_pData):
             """`AVS_GetParameter` either fills pRequiredSize or pData,
             depending on whether Size is 0, or the number of devices."""
-            if a_Size == 0:
-                a_pRequiredSize[0] = self.n_devices * fibspec.DEVICE_CONFIG_SIZE
-            else:
-                config = fibspec.DeviceConfigType()
-                a_pData[0] = config
-            return self.n_devices
+            config = DeviceConfig()
+            a_pData[0] = config
 
         # successful init() and updateUSBDevices() return the number of devices
         self.patch.return_value.AVS_Init.return_value = self.n_devices
@@ -81,7 +77,7 @@ class TestFiberSpectrograph(unittest.TestCase):
         """Test connecting to the first device."""
         fiber_spec = FiberSpectrograph()
         self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
-        self.patch.return_value.AVS_GetList.assert_called()
+        self.patch.return_value.AVS_GetList.assert_called_once()
         self.patch.return_value.AVS_Activate.assert_called_with(self.id0)
         self.assertEqual(fiber_spec.device, self.id0)
 
@@ -89,15 +85,11 @@ class TestFiberSpectrograph(unittest.TestCase):
         """Test connecting to a device with a specific serial number."""
         serial_number = "54321"
         self.n_devices = 2
-        id1 = fibspec.AvsIdentityType(bytes(str(serial_number), "ascii"), b"Fake Spectrograph 2", 1)
+        id1 = AvsIdentity(bytes(str(serial_number), "ascii"), b"Fake Spectrograph 2", 1)
 
         def mock_getList(a_listSize, a_pRequiredSize, a_pList):
             """Pretend that two devices are connected."""
-            if a_listSize == 0:
-                a_pRequiredSize[0] = self.n_devices * fibspec.AVS_IDENTITY_SIZE
-            else:
-                a_pList[0] = self.id0
-                a_pList[1] = id1
+            a_pList[:] = [self.id0, id1]
             return self.n_devices
 
         self.patch.return_value.AVS_GetList.side_effect = mock_getList
@@ -105,22 +97,19 @@ class TestFiberSpectrograph(unittest.TestCase):
 
         fiber_spec = FiberSpectrograph(serial_number=serial_number)
         self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
-        self.patch.return_value.AVS_GetList.assert_called()
+        self.patch.return_value.AVS_GetList.assert_called_once()
         self.patch.return_value.AVS_Activate.assert_called_with(id1)
         self.assertEqual(fiber_spec.device, id1)
 
     def test_connect_no_serial_number_two_devices_fails(self):
         serial_number = "54321"
         self.n_devices = 2
-        id1 = fibspec.AvsIdentityType(bytes(str(serial_number), "ascii"), b"Fake Spectrograph 2", 1)
+        id1 = AvsIdentity(bytes(str(serial_number), "ascii"), b"Fake Spectrograph 2", 1)
 
         def mock_getList(a_listSize, a_pRequiredSize, a_pList):
             """Pretend that two devices are connected."""
-            if a_listSize == 0:
-                a_pRequiredSize[0] = self.n_devices * fibspec.AVS_IDENTITY_SIZE
-            else:
-                a_pList[0] = self.id0
-                a_pList[1] = id1
+            a_pList[0] = self.id0
+            a_pList[1] = id1
             return self.n_devices
 
         self.patch.return_value.AVS_GetList.side_effect = mock_getList
@@ -129,6 +118,9 @@ class TestFiberSpectrograph(unittest.TestCase):
         msg = "Multiple devices found, but no serial number specified. Attached devices: "
         with self.assertRaisesRegex(RuntimeError, msg):
             FiberSpectrograph()
+        self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
+        self.patch.return_value.AVS_GetList.assert_called_once()
+        self.patch.return_value.AVS_Activate.assert_not_called()
 
     def test_connect_bad_serial_number_fails(self):
         """Test that connect raises an exception if the requested device does
@@ -136,29 +128,50 @@ class TestFiberSpectrograph(unittest.TestCase):
         """
         serial_number = "54321"
 
-        with self.assertRaises(LookupError):
+        with self.assertRaisesRegex(LookupError, f"Device serial number {serial_number} not found"):
             FiberSpectrograph(serial_number=serial_number)
         self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
-        self.patch.return_value.AVS_GetList.assert_called()
+        self.patch.return_value.AVS_GetList.assert_called_once()
         self.patch.return_value.AVS_Activate.assert_not_called()
 
     def test_connect_bad_handle_fails(self):
         """Test that connect raises an exception if the device cannot be
         activated.
         """
-        self.patch.return_value.AVS_Activate.return_value = fibspec.AVS.INVALID_AVS_HANDLE_VALUE
+        self.patch.return_value.AVS_Activate.return_value = AvsReturnCode.invalidHandle
 
-        with self.assertRaises(RuntimeError):
+        with self.assertRaisesRegex(RuntimeError, "Invalid device handle"):
             FiberSpectrograph()
         self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
-        self.patch.return_value.AVS_GetList.assert_called()
+        self.patch.return_value.AVS_GetList.assert_called_once()
         self.patch.return_value.AVS_Activate.assert_called_once()
+
+    def test_connect_invalid_size(self):
+        """Test that connect raises if GetList returns an error code."""
+        self.patch.return_value.AVS_GetList.side_effect = None
+        self.patch.return_value.AVS_GetList.return_value = AvsReturnCode.invalidSize
+        with self.assertRaisesRegex(RuntimeError, "Fatal Error"):
+            FiberSpectrograph()
+        self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
+        self.patch.return_value.AVS_GetList.assert_called_once()
+        self.patch.return_value.AVS_Activate.assert_not_called()
+
+    def test_connect_no_devices(self):
+        """Test that connect raises if no devices were found."""
+        self.patch.return_value.AVS_UpdateUSBDevices.return_value = 0
+
+        with self.assertRaisesRegex(RuntimeError, "No attached USB Avantes devices found"):
+            FiberSpectrograph()
+        self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
+        self.patch.return_value.AVS_GetList.assert_not_called()
+        self.patch.return_value.AVS_Activate.assert_not_called()
 
     def test_disconnect(self):
         """Test a successful USB disconnect command."""
         fiber_spec = FiberSpectrograph()
         fiber_spec.disconnect()
         self.patch.return_value.AVS_Deactivate.assert_called_once_with(self.handle)
+        self.patch.return_value.AVS_Done.assert_called_once_with()
 
     def test_disconnect_no_handle(self):
         """Test that we do not attempt to disconnect if there is no device
@@ -168,6 +181,7 @@ class TestFiberSpectrograph(unittest.TestCase):
         fiber_spec.handle = None
         fiber_spec.disconnect()
         self.patch.return_value.AVS_Deactivate.assert_not_called()
+        self.patch.return_value.AVS_Done.assert_not_called()
 
     def test_disconnect_fails_logged(self):
         """Test that a "failed" Deactivate emits an error."""
@@ -176,12 +190,14 @@ class TestFiberSpectrograph(unittest.TestCase):
         with self.assertLogs(fiber_spec.log, "ERROR"):
             fiber_spec.disconnect()
         self.patch.return_value.AVS_Deactivate.assert_called_once_with(self.handle)
+        self.patch.return_value.AVS_Done.assert_called_once_with()
 
     def test_disconnect_on_delete(self):
         """Test that the connection is closed if the object is deleted."""
         fiber_spec = FiberSpectrograph()
         del fiber_spec
         self.patch.return_value.AVS_Deactivate.assert_called_once_with(self.handle)
+        self.patch.return_value.AVS_Done.assert_called_once_with()
 
 
 if __name__ == "__main__":
