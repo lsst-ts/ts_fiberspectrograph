@@ -138,7 +138,7 @@ class TestFiberSpectrograph(unittest.TestCase):
         """Test that connect raises an exception if the device cannot be
         activated.
         """
-        self.patch.return_value.AVS_Activate.return_value = AvsReturnCode.invalidHandle
+        self.patch.return_value.AVS_Activate.return_value = AvsReturnCode.invalidHandle.value
 
         with self.assertRaisesRegex(RuntimeError, "Invalid device handle"):
             FiberSpectrograph()
@@ -147,10 +147,22 @@ class TestFiberSpectrograph(unittest.TestCase):
         self.patch.return_value.AVS_Activate.assert_called_once()
 
     def test_connect_invalid_size(self):
-        """Test that connect raises if GetList returns an error code."""
+        """Test that connect raises if GetList returns "Invalid Size"."""
         self.patch.return_value.AVS_GetList.side_effect = None
-        self.patch.return_value.AVS_GetList.return_value = AvsReturnCode.invalidSize
+        self.patch.return_value.AVS_GetList.return_value = AvsReturnCode.invalidSize.value
         with self.assertRaisesRegex(RuntimeError, "Fatal Error"):
+            FiberSpectrograph()
+        self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
+        self.patch.return_value.AVS_GetList.assert_called_once()
+        self.patch.return_value.AVS_Activate.assert_not_called()
+
+    def test_connect_other_error(self):
+        """Test that connect raises with a message containing the interpreted
+        code if GetList returns an error code.
+        """
+        self.patch.return_value.AVS_GetList.side_effect = None
+        self.patch.return_value.AVS_GetList.return_value = AvsReturnCode.dllInitialisationError.value
+        with self.assertRaisesRegex(RuntimeError, "dllInitialisationError"):
             FiberSpectrograph()
         self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
         self.patch.return_value.AVS_GetList.assert_called_once()
@@ -172,6 +184,7 @@ class TestFiberSpectrograph(unittest.TestCase):
         fiber_spec.disconnect()
         self.patch.return_value.AVS_Deactivate.assert_called_once_with(self.handle)
         self.patch.return_value.AVS_Done.assert_called_once_with()
+        self.assertIsNone(fiber_spec.handle)
 
     def test_disconnect_no_handle(self):
         """Test that we do not attempt to disconnect if there is no device
@@ -181,7 +194,16 @@ class TestFiberSpectrograph(unittest.TestCase):
         fiber_spec.handle = None
         fiber_spec.disconnect()
         self.patch.return_value.AVS_Deactivate.assert_not_called()
-        self.patch.return_value.AVS_Done.assert_not_called()
+        self.patch.return_value.AVS_Done.assert_called_once_with()
+
+    def test_disconnect_bad_handle(self):
+        """Do not attempt to disconnect if the device handle is bad.
+        """
+        fiber_spec = FiberSpectrograph()
+        fiber_spec.handle = AvsReturnCode.invalidHandle.value
+        fiber_spec.disconnect()
+        self.patch.return_value.AVS_Deactivate.assert_not_called()
+        self.patch.return_value.AVS_Done.assert_called_once_with()
 
     def test_disconnect_fails_logged(self):
         """Test that a "failed" Deactivate emits an error."""

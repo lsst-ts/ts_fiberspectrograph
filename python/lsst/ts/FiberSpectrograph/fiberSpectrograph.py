@@ -39,10 +39,13 @@ class FiberSpectrograph:
 
     Parameters
     ----------
-    serial_number: `str`, optional
+    serial_number : `str`, optional
         The serial number of the USB device to connect to. If `None`, then
         connect to the only available USB device, or raise RuntimeError
         if multiple devices are connected.
+    log_to_stdout : `bool`
+        Send all log info from DEBUG up to stdout. Useful when debugging the
+        spectrograph in a python terminal.
 
     Raises
     ------
@@ -60,18 +63,19 @@ class FiberSpectrograph:
     """`AvsIdentityType` of the connected spectrograph.
     """
 
-    def __init__(self, serial_number=None):
+    def __init__(self, serial_number=None, log_to_stdout=False):
         self.log = logging.getLogger('FiberSpectrograph')
-        self.log.setLevel(logging.DEBUG)
-
-        # dump everything to stdout, to aid debugging
-        import sys
-        logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
+        if log_to_stdout:
+            self.log.setLevel(logging.DEBUG)
+            import sys
+            logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
 
         self.libavs = ctypes.CDLL("/usr/local/lib/libavs.so.0.2.0")
 
         # NOTE: init(0) initializes the USB library, not device 0.
         self.libavs.AVS_Init(0)
+
+        self._configure_ctypes()
 
         self._connect(serial_number)
 
@@ -105,7 +109,10 @@ class FiberSpectrograph:
         code = self.libavs.AVS_GetList(required_size.contents.value, required_size, device_list)
         if code == AvsReturnCode.invalidSize:
             raise RuntimeError(f"Fatal Error: did not allocate necessary space for device list.")
-        device_list = [x for x in device_list]  # unpack the array pointer
+        if code < 0:
+            result = AvsReturnCode(code)
+            raise RuntimeError(f"Error getting device list with error code: %s", result)
+        device_list = list(device_list)  # unpack the array pointer
         self.log.debug("Found devices: %s", device_list)
 
         if serial_number is None:
@@ -122,7 +129,6 @@ class FiberSpectrograph:
                 raise LookupError(msg)
 
         self.handle = self.libavs.AVS_Activate(device)
-        print(self.handle)
         if self.handle == AvsReturnCode.invalidHandle:
             raise RuntimeError(f"Invalid device handle; cannot activate device {device}.")
         self.log.info("Activated connection (handle=%s) with USB device %s.", self.handle, device)
@@ -132,11 +138,12 @@ class FiberSpectrograph:
         """Close the connection with the connected USB spectrograph.
         If the attempt to disconnect fails, log an error messages.
         """
-        if self.handle is not None:
+        if self.handle is not None and self.handle != AvsReturnCode.invalidHandle:
             result = self.libavs.AVS_Deactivate(self.handle)
             if not result:
                 self.log.error("Could not deactivate device %s with handle %s.", self.device, self.handle)
-            self.libavs.AVS_Done()
+            self.handle = None
+        self.libavs.AVS_Done()
 
     async def get_status(self):
         """Get the status of the currently connected spectrograph.
@@ -167,6 +174,15 @@ class FiberSpectrograph:
     def __del__(self):
         self.disconnect()
 
+    def _configure_ctypes(self):
+        """Configure function arguments for communication with libavs.
+
+        Some of the functions in libavs need to have their types and/or
+        return values explicitly defined as pointers for python to be able
+        to pass them in correctly.
+        """
+        self.libavs.AVS_Activate.argtypes = [ctypes.POINTER(AvsIdentity)]
+
 
 # size of these character fields in bytes
 AVS_USER_ID_LEN = 64
@@ -176,9 +192,6 @@ AVS_SERIAL_LEN = 10
 class AvsIdentity(ctypes.Structure):
     """Python structure to represent the `AvsIdentityType` C struct."""
     size = 75  # total size of this structure in bytes
-
-    # size of these character fields in bytes
-    AVS_SERIAL_LEN = 10
 
     _pack_ = 1
     _fields_ = [("SerialNumber", ctypes.c_char * AVS_SERIAL_LEN),
