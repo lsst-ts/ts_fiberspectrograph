@@ -33,7 +33,7 @@ class TestFiberSpectrograph(unittest.TestCase):
         with all methods behaving as if one device is connected and behaving.
         """
         self.n_devices = 1  # Pretend one device is connected
-        self.serial_number = 123456789
+        self.serial_number = "123456789"
         self.handle = 314159
 
         patcher = unittest.mock.patch("ctypes.CDLL")
@@ -87,7 +87,7 @@ class TestFiberSpectrograph(unittest.TestCase):
 
     def test_connect_serial_number(self):
         """Test connecting to a device with a specific serial number."""
-        serial_number = 54321
+        serial_number = "54321"
         self.n_devices = 2
         id1 = fibspec.AvsIdentityType(bytes(str(serial_number), "ascii"), b"Fake Spectrograph 2", 1)
 
@@ -110,7 +110,7 @@ class TestFiberSpectrograph(unittest.TestCase):
         self.assertEqual(fiber_spec.device, id1)
 
     def test_connect_no_serial_number_two_devices_fails(self):
-        serial_number = 54321
+        serial_number = "54321"
         self.n_devices = 2
         id1 = fibspec.AvsIdentityType(bytes(str(serial_number), "ascii"), b"Fake Spectrograph 2", 1)
 
@@ -134,7 +134,7 @@ class TestFiberSpectrograph(unittest.TestCase):
         """Test that connect raises an exception if the requested device does
         not exist.
         """
-        serial_number = 54321
+        serial_number = "54321"
 
         with self.assertRaises(LookupError):
             FiberSpectrograph(serial_number=serial_number)
@@ -159,6 +159,15 @@ class TestFiberSpectrograph(unittest.TestCase):
         fiber_spec = FiberSpectrograph()
         fiber_spec.disconnect()
         self.patch.return_value.AVS_Deactivate.assert_called_once_with(self.handle)
+
+    def test_disconnect_no_handle(self):
+        """Test that we do not attempt to disconnect if there is no device
+        handle.
+        """
+        fiber_spec = FiberSpectrograph()
+        fiber_spec.handle = None
+        fiber_spec.disconnect()
+        self.patch.return_value.AVS_Deactivate.assert_not_called()
 
     def test_disconnect_fails_logged(self):
         """Test that a "failed" Deactivate emits an error."""

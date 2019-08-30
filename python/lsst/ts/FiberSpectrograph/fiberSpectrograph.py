@@ -35,7 +35,7 @@ class FiberSpectrograph:
 
     Parameters
     ----------
-    serial_number: `int`, optional
+    serial_number: `str`, optional
         The serial number of the USB device to connect to. If `None`, then
         connect to the only available USB device, or raise RuntimeError
         if multiple devices are connected.
@@ -57,11 +57,13 @@ class FiberSpectrograph:
     """
 
     def __init__(self, serial_number=None):
+        self.log = logging.getLogger('FiberSpectrograph')
+        self.log.setLevel(logging.DEBUG)
+
         self.avaspec = AVS()
         # NOTE: init(0) initializes the USB library, not device 0.
         self.avaspec.init(0)
 
-        self.log = logging.getLogger('FiberSpectrograph')
         self._connect(serial_number)
 
     def _connect(self, serial_number=None):
@@ -69,7 +71,7 @@ class FiberSpectrograph:
 
         Parameters
         ----------
-        serial_number: `int`, optional
+        serial_number: `str`, optional
             The serial number of the USB device to connect to. If `None`, then
             connect to the only available USB device, or raise RuntimeError
             if multiple devices are connected.
@@ -94,7 +96,7 @@ class FiberSpectrograph:
             device = device_list[0]
         else:
             for device in device_list:
-                if serial_number == int(device.SerialNumber):
+                if serial_number == device.SerialNumber.decode('ascii'):
                     break
             else:
                 msg = f"Device serial number {serial_number} not found in device list: {device_list}"
@@ -109,9 +111,10 @@ class FiberSpectrograph:
         """Close the connection with the connected USB spectrograph.
         If the attempt to disconnect fails, log an error messages.
         """
-        result = self.avaspec.lib.AVS_Deactivate(self.handle)
-        if not result:
-            self.log.error("Could not deactivate device %s with handle %s.", self.device, self.handle)
+        if self.handle is not None:
+            result = self.avaspec.lib.AVS_Deactivate(self.handle)
+            if not result:
+                self.log.error("Could not deactivate device %s with handle %s.", self.device, self.handle)
 
     async def get_status(self):
         """Get the status of the currently connected spectrograph.
