@@ -25,7 +25,6 @@ import unittest.mock
 from lsst.ts.FiberSpectrograph import FiberSpectrograph
 from lsst.ts.FiberSpectrograph import AvsReturnCode
 from lsst.ts.FiberSpectrograph import AvsIdentity
-from lsst.ts.FiberSpectrograph import DeviceConfig
 
 
 class TestFiberSpectrograph(unittest.TestCase):
@@ -54,19 +53,40 @@ class TestFiberSpectrograph(unittest.TestCase):
             amount of space was allocated for the list."""
             a_pList[0] = self.id0
             return self.n_devices
+        self.patch.return_value.AVS_GetList.side_effect = mock_getList
 
-        def mock_getParameter(handle, a_Size, a_pRequiredSize, a_pData):
-            """`AVS_GetParameter` either fills pRequiredSize or pData,
-            depending on whether Size is 0, or the number of devices."""
-            config = DeviceConfig()
-            a_pData[0] = config
+        self.n_pixels = 3141
+        self.temperature_setpoint = -273.0
+
+        def mock_getParameter(handle, a_Size, a_pRequiredSize, config):
+            """Assume a_pData has the correct amount of space allocated."""
+            config.m_Detector_m_NrPixels = self.n_pixels
+            config.m_TecControl_m_Setpoint = self.temperature_setpoint
+
+        self.patch.return_value.AVS_GetParameter.side_effect = mock_getParameter
+
+        self.fpga_version = "fpga12345678901"
+        self.firmware_version = "firmware123456"
+        self.library_version = "library123456"
+
+        def mock_getVersionInfo(handle, a_pFPGAVersion, a_pFirmwareVersion, a_pLibVersion):
+            a_pFPGAVersion[:15] = self.fpga_version.encode('ascii')
+            a_pFirmwareVersion[:14] = self.firmware_version.encode('ascii')
+            a_pLibVersion[:13] = self.library_version.encode('ascii')
+
+        self.patch.return_value.AVS_GetVersionInfo.side_effect = mock_getVersionInfo
+
+        self.temperature = -200.0
+
+        def mock_getAnalogIn(handle, a_AnalogInId, a_pAnalogIn):
+            """Return a fake temperature measurement."""
+            if a_AnalogInId == 0:
+                a_pAnalogIn.contents.value = self.temperature
+        self.patch.return_value.AVS_GetAnalogIn.side_effect = mock_getAnalogIn
 
         # successful init() and updateUSBDevices() return the number of devices
         self.patch.return_value.AVS_Init.return_value = self.n_devices
         self.patch.return_value.AVS_UpdateUSBDevices.return_value = self.n_devices
-
-        self.patch.return_value.AVS_GetList.side_effect = mock_getList
-        self.patch.return_value.AVS_GetParameter.side_effect = mock_getParameter
 
         # successful activate() returns the handle of the connected device
         self.patch.return_value.AVS_Activate.return_value = self.handle
@@ -220,6 +240,16 @@ class TestFiberSpectrograph(unittest.TestCase):
         del fiber_spec
         self.patch.return_value.AVS_Deactivate.assert_called_once_with(self.handle)
         self.patch.return_value.AVS_Done.assert_called_once_with()
+
+    def test_get_status(self):
+        spec = FiberSpectrograph()
+        status = spec.get_status()
+        self.assertEqual(status.fpga_version, self.fpga_version)
+        self.assertEqual(status.firmware_version, self.firmware_version)
+        self.assertEqual(status.library_version, self.library_version)
+        self.assertEqual(status.n_pixels, self.n_pixels)
+        self.assertEqual(status.temperature_setpoint, self.temperature_setpoint)
+        self.assertEqual(status.temperature, self.temperature)
 
 
 if __name__ == "__main__":

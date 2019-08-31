@@ -22,6 +22,7 @@
 __all__ = ["FiberSpectrograph", "AvsIdentity", "DeviceConfig", "AvsReturnCode"]
 
 import ctypes
+import dataclasses
 import enum
 import logging
 import struct
@@ -145,16 +146,39 @@ class FiberSpectrograph:
             self.handle = None
         self.libavs.AVS_Done()
 
-    async def get_status(self):
+    def get_status(self):
         """Get the status of the currently connected spectrograph.
 
         Returns
         -------
-        status : `StatusClass?`
+        status : `DeviceStatus`
             The current status of the spectrograph, including temperature,
             exposure status, etc.
         """
-        pass
+        fpga_version = (ctypes.c_char * 16)()
+        firmware_version = (ctypes.c_char * 16)()
+        library_version = (ctypes.c_char * 16)()
+        self.libavs.AVS_GetVersionInfo(self.handle, fpga_version, firmware_version, library_version)
+
+        config = DeviceConfig()
+        self.libavs.AVS_GetParameter(self.handle,
+                                     config.size,
+                                     _getUIntPointer(config.size),
+                                     config)
+
+        temperature = _getFloatPointer()
+        self.libavs.AVS_GetAnalogIn(self.handle, 0, temperature)
+
+        def decode(value):
+            return bytes(value).decode('ascii').split('\x00', 1)[0]
+        status = DeviceStatus(n_pixels=config.m_Detector_m_NrPixels,
+                              fpga_version=decode(fpga_version),
+                              firmware_version=decode(firmware_version),
+                              library_version=decode(library_version),
+                              temperature_setpoint=config.m_TecControl_m_Setpoint,
+                              temperature=temperature.contents.value,
+                              config=config)
+        return status
 
     async def expose(self, duration):
         """Take an exposure with the currently connected spectrograph.
@@ -182,6 +206,13 @@ class FiberSpectrograph:
         to pass them in correctly.
         """
         self.libavs.AVS_Activate.argtypes = [ctypes.POINTER(AvsIdentity)]
+        self.libavs.AVS_GetParameter.argtypes = [ctypes.c_int,
+                                                 ctypes.c_uint,
+                                                 ctypes.POINTER(ctypes.c_uint),
+                                                 ctypes.POINTER(DeviceConfig)]
+        self.libavs.AVS_GetAnalogIn.argtypes = [ctypes.c_int,
+                                                ctypes.c_ubyte,
+                                                ctypes.POINTER(ctypes.c_float)]
 
 
 # size of these character fields in bytes
@@ -212,6 +243,8 @@ class AvsIdentity(ctypes.Structure):
 
 class DeviceConfig(ctypes.Structure):
     """Python structure to represent the `DeviceConfigType` C struct."""
+    size = 63484  # total size of this structure in bytes
+
     _pack_ = 1
     _fields_ = [("Len", ctypes.c_uint16),
                 ("ConfigVersion", ctypes.c_uint16),
@@ -280,7 +313,20 @@ class DeviceConfig(ctypes.Structure):
                 ("OemData", ctypes.c_uint8 * 4096)]
 
     def __repr__(self):
-        attrs = ', '.join(f"{x[0]}: {getattr(self, x[0])}" for x in self._fields_)
+        def to_str(value):
+            """Try to unroll ctype arrays."""
+            try:
+                return str([x for x in value])
+            except TypeError:
+                return str(value)
+
+        too_long = ["m_Irradiance_m_IntensityCalib_m_aCalibConvers",
+                    "m_Reflectance_m_aCalibConvers",
+                    "m_SpectrumCorrect",
+                    "m_Reserved",
+                    "m_OemData"]
+        attrs = ', '.join(f"{x[0]}: {to_str(getattr(self, x[0]))}" for x in self._fields_
+                          if x[0] not in too_long)
         return f"DeviceConfigType({attrs})"
 
 
@@ -319,6 +365,25 @@ class AvsReturnCode(enum.IntEnum):
     invalidHandle = 1000
 
 
+@dataclasses.dataclass
+class DeviceStatus:
+    """The current status of the connected spectrograph."""
+    n_pixels: int
+    """The number of pixels in the instrument."""
+    fpga_version: str
+    """The FPGA software version."""
+    firmware_version: str
+    """The microcontroller software version."""
+    library_version: str
+    """The AvaSpec Library software version."""
+    temperature_setpoint: float
+    """The detector temperature set point (degrees Celsius)."""
+    temperature: float
+    """The temperature at the optical bench thermistor (degrees Celsius)."""
+    config: DeviceConfig = None
+    """The full DeviceConfig structure."""
+
+
 def _getUIntPointer(value=0):
     """Return a pointer to a ctypes unsigned int."""
     return ctypes.POINTER(ctypes.c_uint)(ctypes.c_uint(value))
@@ -327,6 +392,11 @@ def _getUIntPointer(value=0):
 def _getUShortPointer(value=0):
     """Return a pointer to a ctypes unsigned short."""
     return ctypes.POINTER(ctypes.c_ushort)(ctypes.c_ushort(value))
+
+
+def _getFloatPointer(value=0):
+    """Return a pointer to a ctypes 32-bit float."""
+    return ctypes.POINTER(ctypes.c_float)(ctypes.c_float(value))
 
 
 def _getAvsIdentityArrayPointer(count):
