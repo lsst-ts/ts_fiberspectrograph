@@ -44,6 +44,8 @@ class FiberSpectrograph:
         The serial number of the USB device to connect to. If `None`, then
         connect to the only available USB device, or raise RuntimeError
         if multiple devices are connected.
+    log : `logging.Logger`, optional
+        A Logger instance to send log messages to.
     log_to_stdout : `bool`
         Send all log info from DEBUG up to stdout. Useful when debugging the
         spectrograph in a python terminal.
@@ -64,8 +66,9 @@ class FiberSpectrograph:
     """`AvsIdentityType` of the connected spectrograph.
     """
 
-    def __init__(self, serial_number=None, log_to_stdout=False):
-        self.log = logging.getLogger('FiberSpectrograph')
+    def __init__(self, serial_number=None, log=None, log_to_stdout=False):
+        if log is None:
+            self.log = logging.getLogger('FiberSpectrograph')
         if log_to_stdout:
             self.log.setLevel(logging.DEBUG)
             import sys
@@ -73,7 +76,7 @@ class FiberSpectrograph:
 
         self.libavs = ctypes.CDLL("/usr/local/lib/libavs.so.0.2.0")
 
-        # NOTE: init(0) initializes the USB library, not device 0.
+        # NOTE: AVS_Init(0) initializes the USB library, not device 0.
         self.libavs.AVS_Init(0)
 
         self._configure_ctypes()
