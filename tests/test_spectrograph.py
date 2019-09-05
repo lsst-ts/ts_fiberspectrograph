@@ -27,6 +27,7 @@ import numpy as np
 from lsst.ts.FiberSpectrograph import FiberSpectrograph
 from lsst.ts.FiberSpectrograph import AvsReturnCode
 from lsst.ts.FiberSpectrograph import AvsIdentity
+from lsst.ts.FiberSpectrograph import DeviceConfig
 
 
 class TestFiberSpectrograph(unittest.TestCase):
@@ -261,7 +262,8 @@ class TestFiberSpectrograph(unittest.TestCase):
         np.testing.assert_allclose(status.temperature, self.temperature)
         self.assertIsNone(status.config)
 
-        # Does full=True return a non-None DeviceConfig?
+        # Check that full=True returns a DeviceConfig instead of None
+        # (we're not worried about the contents of it here)
         status = spec.get_status(full=True)
         self.assertIsNotNone(status.config)
 
@@ -285,6 +287,16 @@ class TestFiberSpectrograph(unittest.TestCase):
         self.patch.return_value.AVS_GetAnalogIn.return_value = AvsReturnCode.timeout.value
         with self.assertRaisesRegex(RuntimeError, "GetAnalogIn.*timeout"):
             spec.get_status()
+
+
+class TestDeviceConfig(unittest.TestCase):
+    def test_str(self):
+        """Test some specific aspects of the (long) string representation."""
+        config = DeviceConfig()
+        string = str(config)
+        self.assertIn("TecControl_m_Enable=False", string)
+        self.assertNotIn("SpectrumCorrect", string)
+        self.assertNotIn("OemData", string)
 
 
 if __name__ == "__main__":

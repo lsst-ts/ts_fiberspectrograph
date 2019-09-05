@@ -357,12 +357,12 @@ class DeviceConfig(ctypes.Structure):
             except TypeError:
                 return str(value)
 
-        too_long = ["m_Irradiance_m_IntensityCalib_m_aCalibConvers",
-                    "m_Reflectance_m_aCalibConvers",
-                    "m_SpectrumCorrect",
-                    "m_Reserved",
-                    "m_OemData"]
-        attrs = ', '.join(f"{x[0]}: {to_str(getattr(self, x[0]))}" for x in self._fields_
+        too_long = ["Irradiance_m_IntensityCalib_m_aCalibConvers",
+                    "Reflectance_m_aCalibConvers",
+                    "SpectrumCorrect",
+                    "Reserved",
+                    "OemData"]
+        attrs = ', '.join(f"{x[0]}={to_str(getattr(self, x[0]))}" for x in self._fields_
                           if x[0] not in too_long)
         return f"DeviceConfigType({attrs})"
 
