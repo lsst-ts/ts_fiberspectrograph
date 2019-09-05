@@ -21,11 +21,34 @@
 
 __all__ = ["FiberSpectrograph", "AvsIdentity", "DeviceConfig", "AvsReturnCode"]
 
+import numpy as np
 import ctypes
 import dataclasses
 import enum
 import logging
 import struct
+
+
+def assert_avs_code(code, msg):
+    """Raise if the code returned from an AVS function call is an error.
+
+    Parameters
+    ----------
+    code : `int`
+        The value returned from a call to an AVS function.
+    msg : `str`
+        The message to include in any raised exception.
+
+    Raises
+    ------
+    RuntimeError
+        Raised if ``code`` is a non-success error code.
+    """
+    if code == AvsReturnCode.invalidSize:
+        raise RuntimeError(f"Fatal Error calling {msg}: allocated size for return value too small.")
+    if code < 0:
+        result = AvsReturnCode(code)
+        raise RuntimeError(f"Error calling {msg} with error code: {repr(result)}")
 
 
 class FiberSpectrograph:
@@ -111,11 +134,7 @@ class FiberSpectrograph:
         device_list = _getAvsIdentityArrayPointer(n_devices)
 
         code = self.libavs.AVS_GetList(required_size.contents.value, required_size, device_list)
-        if code == AvsReturnCode.invalidSize:
-            raise RuntimeError(f"Fatal Error: did not allocate necessary space for device list.")
-        if code < 0:
-            result = AvsReturnCode(code)
-            raise RuntimeError(f"Error getting device list with error code: %s", result)
+        assert_avs_code(code, "GetList (device list)")
         device_list = list(device_list)  # unpack the array pointer
         self.log.debug("Found devices: %s", device_list)
 
@@ -133,6 +152,7 @@ class FiberSpectrograph:
                 raise LookupError(msg)
 
         self.handle = self.libavs.AVS_Activate(device)
+        assert_avs_code(code, "GetVersionInfo")
         if self.handle == AvsReturnCode.invalidHandle:
             raise RuntimeError(f"Invalid device handle; cannot activate device {device}.")
         self.log.info("Activated connection (handle=%s) with USB device %s.", self.handle, device)
@@ -149,8 +169,16 @@ class FiberSpectrograph:
             self.handle = None
         self.libavs.AVS_Done()
 
-    def get_status(self):
+    def get_status(self, full=False):
         """Get the status of the currently connected spectrograph.
+
+        Parameters
+        ----------
+        full : `bool`
+            Include the full `DeviceConfig` structure in the returned status.
+            This can be useful for understanding what other information is
+            available from the spectrograph, but requires having the Avantes
+            manual on hand to decode it.
 
         Returns
         -------
@@ -158,29 +186,35 @@ class FiberSpectrograph:
             The current status of the spectrograph, including temperature,
             exposure status, etc.
         """
-        fpga_version = (ctypes.c_char * 16)()
-        firmware_version = (ctypes.c_char * 16)()
-        library_version = (ctypes.c_char * 16)()
-        self.libavs.AVS_GetVersionInfo(self.handle, fpga_version, firmware_version, library_version)
+        fpga_version = (ctypes.c_ubyte * 16)()
+        firmware_version = (ctypes.c_ubyte * 16)()
+        library_version = (ctypes.c_ubyte * 16)()
+        code = self.libavs.AVS_GetVersionInfo(self.handle, fpga_version, firmware_version, library_version)
+        assert_avs_code(code, "GetVersionInfo")
 
         config = DeviceConfig()
-        self.libavs.AVS_GetParameter(self.handle,
-                                     config.size,
-                                     _getUIntPointer(config.size),
-                                     config)
+        code = self.libavs.AVS_GetParameter(self.handle,
+                                            config.size,
+                                            _getUIntPointer(config.size),
+                                            config)
+        assert_avs_code(code, "GetParameter")
 
-        temperature = _getFloatPointer()
-        self.libavs.AVS_GetAnalogIn(self.handle, 0, temperature)
+        voltage = _getFloatPointer()
+        code = self.libavs.AVS_GetAnalogIn(self.handle, 0, voltage)
+        assert_avs_code(code, "GetAnalogIn")
+        temperature = np.polynomial.polynomial.polyval(voltage.contents.value, config.Temperature_3_m_aFit)
 
         def decode(value):
+            """Return a byte string decoded to ASCII with NULLs stripped."""
             return bytes(value).decode('ascii').split('\x00', 1)[0]
-        status = DeviceStatus(n_pixels=config.m_Detector_m_NrPixels,
+
+        status = DeviceStatus(n_pixels=config.Detector_m_NrPixels,
                               fpga_version=decode(fpga_version),
                               firmware_version=decode(firmware_version),
                               library_version=decode(library_version),
-                              temperature_setpoint=config.m_TecControl_m_Setpoint,
-                              temperature=temperature.contents.value,
-                              config=config)
+                              temperature_setpoint=config.TecControl_m_Setpoint,
+                              temperature=temperature,
+                              config=config if full else None)
         return status
 
     async def expose(self, duration):
