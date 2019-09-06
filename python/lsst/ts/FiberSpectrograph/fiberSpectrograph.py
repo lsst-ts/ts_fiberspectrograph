@@ -199,7 +199,8 @@ class FiberSpectrograph:
         if self.handle is not None and self.handle != AvsReturnCode.invalidHandle:
             result = self.libavs.AVS_Deactivate(self.handle)
             if not result:
-                self.log.error("Could not deactivate device %s with handle %s.", self.device, self.handle)
+                self.log.error("Could not deactivate device %s with handle %s. Assuming it is safe to "
+                               "close the communication port anyway.", self.device, self.handle)
             self.handle = None
         self.libavs.AVS_Done()
 
