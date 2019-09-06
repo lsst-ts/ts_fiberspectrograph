@@ -275,14 +275,23 @@ class FiberSpectrograph:
 
         Some of the functions in libavs need to have their types and/or
         return values explicitly defined as pointers for python to be able
-        to pass them in correctly.
+        to pass them in correctly using the `ctypes` interface. Any C function
+        that manipulates a ctypes pointer should have its argument types
+        defined here.
         """
+        self.libavs.AVS_GetList.argtypes = [ctypes.c_long,
+                                            ctypes.POINTER(ctypes.c_uint),
+                                            ctypes.POINTER(AvsIdentity)]
         self.libavs.AVS_Activate.argtypes = [ctypes.POINTER(AvsIdentity)]
-        self.libavs.AVS_GetParameter.argtypes = [ctypes.c_int,
+        self.libavs.AVS_GetParameter.argtypes = [ctypes.c_long,
                                                  ctypes.c_uint,
                                                  ctypes.POINTER(ctypes.c_uint),
                                                  ctypes.POINTER(DeviceConfig)]
-        self.libavs.AVS_GetAnalogIn.argtypes = [ctypes.c_int,
+        self.libavs.AVS_GetVersionInfo.argtypes = [ctypes.c_long,
+                                                   ctypes.POINTER(ctypes.c_ubyte),
+                                                   ctypes.POINTER(ctypes.c_ubyte),
+                                                   ctypes.POINTER(ctypes.c_ubyte)]
+        self.libavs.AVS_GetAnalogIn.argtypes = [ctypes.c_long,
                                                 ctypes.c_ubyte,
                                                 ctypes.POINTER(ctypes.c_float)]
 
