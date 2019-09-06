@@ -25,7 +25,7 @@ import unittest.mock
 import numpy as np
 
 from lsst.ts.FiberSpectrograph import FiberSpectrograph
-from lsst.ts.FiberSpectrograph import AvsReturnCode
+from lsst.ts.FiberSpectrograph import AvsReturnCode, AvsReturnError
 from lsst.ts.FiberSpectrograph import AvsIdentity
 from lsst.ts.FiberSpectrograph import DeviceConfig
 
@@ -179,8 +179,8 @@ class TestFiberSpectrograph(unittest.TestCase):
     def test_connect_invalid_size(self):
         """Test that connect raises if GetList returns "Invalid Size"."""
         self.patch.return_value.AVS_GetList.side_effect = None
-        self.patch.return_value.AVS_GetList.return_value = AvsReturnCode.invalidSize.value
-        with self.assertRaisesRegex(RuntimeError, "Fatal Error"):
+        self.patch.return_value.AVS_GetList.return_value = AvsReturnCode.ERR_INVALID_SIZE.value
+        with self.assertRaisesRegex(AvsReturnError, "Fatal Error"):
             FiberSpectrograph()
         self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
         self.patch.return_value.AVS_GetList.assert_called_once()
@@ -191,8 +191,8 @@ class TestFiberSpectrograph(unittest.TestCase):
         code if GetList returns an error code.
         """
         self.patch.return_value.AVS_GetList.side_effect = None
-        self.patch.return_value.AVS_GetList.return_value = AvsReturnCode.dllInitialisationError.value
-        with self.assertRaisesRegex(RuntimeError, "dllInitialisationError"):
+        self.patch.return_value.AVS_GetList.return_value = AvsReturnCode.ERR_DLL_INITIALISATION.value
+        with self.assertRaisesRegex(AvsReturnError, "ERR_DLL_INITIALISATION"):
             FiberSpectrograph()
         self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
         self.patch.return_value.AVS_GetList.assert_called_once()
@@ -270,23 +270,50 @@ class TestFiberSpectrograph(unittest.TestCase):
     def test_get_status_getVersionInfo_fails(self):
         spec = FiberSpectrograph()
         self.patch.return_value.AVS_GetVersionInfo.side_effect = None
-        self.patch.return_value.AVS_GetVersionInfo.return_value = AvsReturnCode.deviceNotFound.value
-        with self.assertRaisesRegex(RuntimeError, "GetVersionInfo.*deviceNotFound"):
+        self.patch.return_value.AVS_GetVersionInfo.return_value = AvsReturnCode.ERR_DEVICE_NOT_FOUND.value
+        with self.assertRaisesRegex(AvsReturnError, "GetVersionInfo.*ERR_DEVICE_NOT_FOUND"):
             spec.get_status()
 
     def test_get_status_getParameter_fails(self):
         spec = FiberSpectrograph()
         self.patch.return_value.AVS_GetParameter.side_effect = None
-        self.patch.return_value.AVS_GetParameter.return_value = AvsReturnCode.invalidDeviceId.value
-        with self.assertRaisesRegex(RuntimeError, "GetParameter.*invalidDeviceId"):
+        self.patch.return_value.AVS_GetParameter.return_value = AvsReturnCode.ERR_INVALID_DEVICE_ID.value
+        with self.assertRaisesRegex(AvsReturnError, "GetParameter.*ERR_INVALID_DEVICE_ID"):
             spec.get_status()
 
     def test_get_status_getAnalogIn_fails(self):
         spec = FiberSpectrograph()
         self.patch.return_value.AVS_GetAnalogIn.side_effect = None
-        self.patch.return_value.AVS_GetAnalogIn.return_value = AvsReturnCode.timeout.value
-        with self.assertRaisesRegex(RuntimeError, "GetAnalogIn.*timeout"):
+        self.patch.return_value.AVS_GetAnalogIn.return_value = AvsReturnCode.ERR_TIMEOUT.value
+        with self.assertRaisesRegex(AvsReturnError, "GetAnalogIn.*ERR_TIMEOUT"):
             spec.get_status()
+
+
+class TestAvsReturnError(unittest.TestCase):
+    """Tests of the string representations of AvsReturnError exceptions."""
+    def test_valid_code(self):
+        """Test that an valid code results in a useful message."""
+        code = -24
+        what = "valid test"
+        err = AvsReturnError(code, what)
+        msg = "Error calling `valid test` with error code <AvsReturnCode.ERR_ACCESS: -24>"
+        self.assertIn(msg, repr(err))
+
+    def test_invalid_size(self):
+        """Test that the "invalid size" code results in a useful message."""
+        code = -9
+        what = "invalid size test"
+        err = AvsReturnError(code, what)
+        msg = f"Fatal Error <AvsReturnCode.ERR_INVALID_SIZE: -9> calling `invalid size test`"
+        self.assertIn(msg, repr(err))
+
+    def test_invalid_code(self):
+        """Test that an invalid code still results in a useful message."""
+        code = -123456321
+        what = "invalid code test"
+        err = AvsReturnError(code, what)
+        msg = f"Unknown Error (-123456321) calling `invalid code test`; Please consult Avantes documentation"
+        self.assertIn(msg, repr(err))
 
 
 class TestDeviceConfig(unittest.TestCase):

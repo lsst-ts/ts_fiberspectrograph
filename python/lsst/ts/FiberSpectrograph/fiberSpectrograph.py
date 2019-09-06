@@ -19,7 +19,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = ["FiberSpectrograph", "AvsIdentity", "DeviceConfig", "AvsReturnCode"]
+__all__ = ["FiberSpectrograph", "AvsIdentity", "DeviceConfig", "AvsReturnCode", "AvsReturnError"]
 
 import numpy as np
 import ctypes
@@ -29,26 +29,56 @@ import logging
 import struct
 
 
-def assert_avs_code(code, msg):
+class AvsReturnError(Exception):
+    """Exception raised if an ``AVS_*`` C function returns an error code.
+
+    Parameters
+    ----------
+    code : `int`
+        The error code returned by the failing function.
+    what : `str`
+        The function that was called that returned this error code.
+    """
+    def __init__(self, code, what):
+        try:
+            self.code = AvsReturnCode(code)
+            self._valid = True
+        except ValueError:
+            # unknown error codes are handled with a separate message.
+            self._valid = False
+            self.code = code
+        self.what = what
+
+    def __str__(self):
+        if self._valid is False:
+            return (f"Unknown Error ({self.code}) calling `{self.what}`;"
+                    " Please consult Avantes documentation and update `AvsReturnCode` to include this code.")
+        if self.code == AvsReturnCode.ERR_INVALID_SIZE:
+            return f"Fatal Error {self.code!r} calling `{self.what}`: allocated size too small for data."
+        else:
+            return f"Error calling `{self.what}` with error code {self.code!r}"
+
+    def __repr__(self):
+        return f"{type(self).__name__}({self!s})"
+
+
+def assert_avs_code(code, what):
     """Raise if the code returned from an AVS function call is an error.
 
     Parameters
     ----------
     code : `int`
         The value returned from a call to an AVS function.
-    msg : `str`
-        The message to include in any raised exception.
+    what : `str`
+        The function that was called that returned this error code.
 
     Raises
     ------
-    RuntimeError
+    AvsReturnError
         Raised if ``code`` is a non-success error code.
     """
-    if code == AvsReturnCode.invalidSize:
-        raise RuntimeError(f"Fatal Error calling {msg}: allocated size for return value too small.")
     if code < 0:
-        result = AvsReturnCode(code)
-        raise RuntimeError(f"Error calling {msg} with error code: {repr(result)}")
+        raise AvsReturnError(code, what)
 
 
 class FiberSpectrograph:
@@ -369,36 +399,57 @@ class DeviceConfig(ctypes.Structure):
 
 @enum.unique
 class AvsReturnCode(enum.IntEnum):
+    """These codes were taken from avaspec.h and should match the code list in
+    section 3.6.1 "Return Value Constants" (page 44) of the "Avantes Linux
+    Library Manual" PDF version 9.6.0.0.
+    """
     success = 0
-    invalidParameter = -1
-    operationNotSupported = -2
-    deviceNotFound = -3
-    invalidDeviceId = -4
-    operationPending = -5
-    timeout = -6
-    invalidPassword = -7
-    invalidMeasurementData = -8
-    invalidSize = -9
-    invalidPixelRange = -10
-    invalidIntegrationTime = -11
-    invalidCombination = -12
-    invalidConfiguration = -13
-    noMeasurementBufferAvailable = -14
-    unknown = -15
-    communicationError = -16
-    noSpectraInRam = -17
-    invalidDLLVersion = -18
-    noMemory = -19
-    dllInitialisationError = -20
-    invalidState = -21
-    invalidReply = -22
-    accessError = -24
-    invalidParameterNumberPixels = -100
-    invalidParameterADCGain = -101
-    invalidParameterADCOffset = -102
-    invalidMeasurementParameterAvgSat2 = -110
-    invalidMeasurementParameterAvgRam = -111
-    invalidMeasurementParameterSyncRam = -112
+    ERR_INVALID_PARAMETER = -1
+    ERR_OPERATION_NOT_SUPPORTED = -2
+    ERR_DEVICE_NOT_FOUND = -3
+    ERR_INVALID_DEVICE_ID = -4
+    ERR_OPERATION_PENDING = -5
+    ERR_TIMEOUT = -6
+    ERR_INVALID_PASSWORD = -7
+    ERR_INVALID_MEAS_DATA = -8
+    ERR_INVALID_SIZE = -9
+    ERR_INVALID_PIXEL_RANGE = -10
+    ERR_INVALID_INT_TIME = -11
+    ERR_INVALID_COMBINATION = -12
+    ERR_INVALID_CONFIGURATION = -13
+    ERR_NO_MEAS_BUFFER_AVAIL = -14
+    ERR_UNKNOWN = -15
+    ERR_COMMUNICATION = -16
+    ERR_NO_SPECTRA_IN_RAM = -17
+    ERR_INVALID_DLL_VERSION = -18
+    ERR_NO_MEMORY = -19
+    ERR_DLL_INITIALISATION = -20
+    ERR_INVALID_STATE = -21
+    ERR_INVALID_REPLY = -22
+    ERR_ACCESS = -24
+    # Return error codes; DeviceData check
+    ERR_INVALID_PARAMETER_NR_PIXELS = -100
+    ERR_INVALID_PARAMETER_ADC_GAIN = -101
+    ERR_INVALID_PARAMETER_ADC_OFFSET = -102
+    # Return error codes; PrepareMeasurement check
+    ERR_INVALID_MEASPARAM_AVG_SAT2 = -110
+    ERR_INVALID_MEASPARAM_AVG_RAM = -111
+    ERR_INVALID_MEASPARAM_SYNC_RAM = -112
+    ERR_INVALID_MEASPARAM_LEVEL_RAM = -113
+    ERR_INVALID_MEASPARAM_SAT2_RAM = -114
+    ERR_INVALID_MEASPARAM_FWVER_RAM = -115
+    ERR_INVALID_MEASPARAM_DYNDARK = -116
+    # Return error codes; SetSensitivityMode check
+    ERR_NOT_SUPPORTED_BY_SENSOR_TYPE = -120
+    ERR_NOT_SUPPORTED_BY_FW_VER = -121
+    ERR_NOT_SUPPORTED_BY_FPGA_VER = -122
+    # Return error codes; SuppressStrayLight check
+    ERR_SL_CALIBRATION_NOT_AVAILABLE = -140
+    ERR_SL_STARTPIXEL_NOT_IN_RANGE = -141
+    ERR_SL_ENDPIXEL_NOT_IN_RANGE = -142
+    ERR_SL_STARTPIX_GT_ENDPIX = -143
+    ERR_SL_MFACTOR_OUT_OF_RANGE = -144
+
     invalidHandle = 1000
 
 
