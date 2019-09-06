@@ -208,6 +208,16 @@ class TestFiberSpectrograph(unittest.TestCase):
         self.patch.return_value.AVS_GetList.assert_not_called()
         self.patch.return_value.AVS_Activate.assert_not_called()
 
+    def test_connect_Activate_fails(self):
+        """Test that connect raises if no devices were found."""
+        self.patch.return_value.AVS_Activate.return_value = AvsReturnCode.ERR_DLL_INITIALISATION.value
+
+        with self.assertRaisesRegex(AvsReturnError, "Activate"):
+            FiberSpectrograph()
+        self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
+        self.patch.return_value.AVS_GetList.assert_called_once()
+        self.patch.return_value.AVS_Activate.assert_called_once()
+
     def test_disconnect(self):
         """Test a successful USB disconnect command."""
         fiber_spec = FiberSpectrograph()

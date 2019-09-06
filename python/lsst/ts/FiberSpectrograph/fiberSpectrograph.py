@@ -186,7 +186,7 @@ class FiberSpectrograph:
                 raise LookupError(msg)
 
         self.handle = self.libavs.AVS_Activate(device)
-        assert_avs_code(code, "GetVersionInfo")
+        assert_avs_code(self.handle, "Activate")
         if self.handle == AvsReturnCode.invalidHandle:
             raise RuntimeError(f"Invalid device handle; cannot activate device {device}.")
         self.log.info("Activated connection (handle=%s) with USB device %s.", self.handle, device)
