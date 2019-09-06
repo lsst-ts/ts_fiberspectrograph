@@ -28,6 +28,10 @@ import enum
 import logging
 import struct
 
+# Fully-qualified path to the vendor-provided libavs AvaSpec library.
+# If installed via the vendor packages, it will be in `/usr/local/lib`.
+LIBRARY_PATH = "/usr/local/lib/libavs.so.0.2.0"
+
 
 class AvsReturnError(Exception):
     """Exception raised if an ``AVS_*`` C function returns an error code.
@@ -127,7 +131,7 @@ class FiberSpectrograph:
             import sys
             logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
 
-        self.libavs = ctypes.CDLL("/usr/local/lib/libavs.so.0.2.0")
+        self.libavs = ctypes.CDLL(LIBRARY_PATH)
 
         # NOTE: AVS_Init(0) initializes the USB library, not device 0.
         self.libavs.AVS_Init(0)
