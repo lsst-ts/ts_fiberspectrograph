@@ -164,7 +164,7 @@ class AvsFiberSpectrograph:
             raise RuntimeError("No attached USB Avantes devices found.")
         self.log.debug("Found %d attached USB Avantes device(s).", n_devices)
 
-        required_size = _getUIntPointer(n_devices * AvsIdentity.size)
+        required_size = _getUIntPointer(n_devices * ctypes.sizeof(AvsIdentity))
         device_list = _getAvsIdentityArrayPointer(n_devices)
 
         code = self.libavs.AVS_GetList(required_size.contents.value, required_size, device_list)
@@ -229,8 +229,8 @@ class AvsFiberSpectrograph:
 
         config = DeviceConfig()
         code = self.libavs.AVS_GetParameter(self.handle,
-                                            config.size,
-                                            _getUIntPointer(config.size),
+                                            ctypes.sizeof(config),
+                                            _getUIntPointer(ctypes.sizeof(config)),
                                             config)
         assert_avs_code(code, "GetParameter")
 
@@ -303,8 +303,6 @@ AVS_SERIAL_LEN = 10
 
 class AvsIdentity(ctypes.Structure):
     """Python structure to represent the `AvsIdentityType` C struct."""
-    size = 75  # total size of this structure in bytes
-
     _pack_ = 1
     _fields_ = [("SerialNumber", ctypes.c_char * AVS_SERIAL_LEN),
                 ("UserFriendlyName", ctypes.c_char * AVS_USER_ID_LEN),
@@ -324,8 +322,6 @@ class AvsIdentity(ctypes.Structure):
 
 class DeviceConfig(ctypes.Structure):
     """Python structure to represent the `DeviceConfigType` C struct."""
-    size = 63484  # total size of this structure in bytes
-
     _pack_ = 1
     _fields_ = [("Len", ctypes.c_uint16),
                 ("ConfigVersion", ctypes.c_uint16),
