@@ -24,7 +24,7 @@ import unittest.mock
 
 import numpy as np
 
-from lsst.ts.FiberSpectrograph import FiberSpectrograph
+from lsst.ts.FiberSpectrograph import AvsFiberSpectrograph
 from lsst.ts.FiberSpectrograph import AvsReturnCode, AvsReturnError
 from lsst.ts.FiberSpectrograph import AvsIdentity
 from lsst.ts.FiberSpectrograph import DeviceConfig
@@ -105,7 +105,7 @@ class TestFiberSpectrograph(unittest.TestCase):
 
     def test_connect(self):
         """Test connecting to the first device."""
-        fiber_spec = FiberSpectrograph()
+        fiber_spec = AvsFiberSpectrograph()
         self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
         self.patch.return_value.AVS_GetList.assert_called_once()
         self.patch.return_value.AVS_Activate.assert_called_with(self.id0)
@@ -125,7 +125,7 @@ class TestFiberSpectrograph(unittest.TestCase):
         self.patch.return_value.AVS_GetList.side_effect = mock_getList
         self.patch.return_value.AVS_UpdateUSBDevices.return_value = self.n_devices
 
-        fiber_spec = FiberSpectrograph(serial_number=serial_number)
+        fiber_spec = AvsFiberSpectrograph(serial_number=serial_number)
         self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
         self.patch.return_value.AVS_GetList.assert_called_once()
         self.patch.return_value.AVS_Activate.assert_called_with(id1)
@@ -147,7 +147,7 @@ class TestFiberSpectrograph(unittest.TestCase):
 
         msg = "Multiple devices found, but no serial number specified. Attached devices: "
         with self.assertRaisesRegex(RuntimeError, msg):
-            FiberSpectrograph()
+            AvsFiberSpectrograph()
         self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
         self.patch.return_value.AVS_GetList.assert_called_once()
         self.patch.return_value.AVS_Activate.assert_not_called()
@@ -159,7 +159,7 @@ class TestFiberSpectrograph(unittest.TestCase):
         serial_number = "54321"
 
         with self.assertRaisesRegex(LookupError, f"Device serial number {serial_number} not found"):
-            FiberSpectrograph(serial_number=serial_number)
+            AvsFiberSpectrograph(serial_number=serial_number)
         self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
         self.patch.return_value.AVS_GetList.assert_called_once()
         self.patch.return_value.AVS_Activate.assert_not_called()
@@ -171,7 +171,7 @@ class TestFiberSpectrograph(unittest.TestCase):
         self.patch.return_value.AVS_Activate.return_value = AvsReturnCode.invalidHandle.value
 
         with self.assertRaisesRegex(RuntimeError, "Invalid device handle"):
-            FiberSpectrograph()
+            AvsFiberSpectrograph()
         self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
         self.patch.return_value.AVS_GetList.assert_called_once()
         self.patch.return_value.AVS_Activate.assert_called_once()
@@ -181,7 +181,7 @@ class TestFiberSpectrograph(unittest.TestCase):
         self.patch.return_value.AVS_GetList.side_effect = None
         self.patch.return_value.AVS_GetList.return_value = AvsReturnCode.ERR_INVALID_SIZE.value
         with self.assertRaisesRegex(AvsReturnError, "Fatal Error"):
-            FiberSpectrograph()
+            AvsFiberSpectrograph()
         self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
         self.patch.return_value.AVS_GetList.assert_called_once()
         self.patch.return_value.AVS_Activate.assert_not_called()
@@ -193,7 +193,7 @@ class TestFiberSpectrograph(unittest.TestCase):
         self.patch.return_value.AVS_GetList.side_effect = None
         self.patch.return_value.AVS_GetList.return_value = AvsReturnCode.ERR_DLL_INITIALISATION.value
         with self.assertRaisesRegex(AvsReturnError, "ERR_DLL_INITIALISATION"):
-            FiberSpectrograph()
+            AvsFiberSpectrograph()
         self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
         self.patch.return_value.AVS_GetList.assert_called_once()
         self.patch.return_value.AVS_Activate.assert_not_called()
@@ -203,7 +203,7 @@ class TestFiberSpectrograph(unittest.TestCase):
         self.patch.return_value.AVS_UpdateUSBDevices.return_value = 0
 
         with self.assertRaisesRegex(RuntimeError, "No attached USB Avantes devices found"):
-            FiberSpectrograph()
+            AvsFiberSpectrograph()
         self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
         self.patch.return_value.AVS_GetList.assert_not_called()
         self.patch.return_value.AVS_Activate.assert_not_called()
@@ -213,14 +213,14 @@ class TestFiberSpectrograph(unittest.TestCase):
         self.patch.return_value.AVS_Activate.return_value = AvsReturnCode.ERR_DLL_INITIALISATION.value
 
         with self.assertRaisesRegex(AvsReturnError, "Activate"):
-            FiberSpectrograph()
+            AvsFiberSpectrograph()
         self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
         self.patch.return_value.AVS_GetList.assert_called_once()
         self.patch.return_value.AVS_Activate.assert_called_once()
 
     def test_disconnect(self):
         """Test a successful USB disconnect command."""
-        fiber_spec = FiberSpectrograph()
+        fiber_spec = AvsFiberSpectrograph()
         fiber_spec.disconnect()
         self.patch.return_value.AVS_Deactivate.assert_called_once_with(self.handle)
         self.patch.return_value.AVS_Done.assert_called_once_with()
@@ -230,7 +230,7 @@ class TestFiberSpectrograph(unittest.TestCase):
         """Test that we do not attempt to disconnect if there is no device
         handle.
         """
-        fiber_spec = FiberSpectrograph()
+        fiber_spec = AvsFiberSpectrograph()
         fiber_spec.handle = None
         fiber_spec.disconnect()
         self.patch.return_value.AVS_Deactivate.assert_not_called()
@@ -239,7 +239,7 @@ class TestFiberSpectrograph(unittest.TestCase):
     def test_disconnect_bad_handle(self):
         """Do not attempt to disconnect if the device handle is bad.
         """
-        fiber_spec = FiberSpectrograph()
+        fiber_spec = AvsFiberSpectrograph()
         fiber_spec.handle = AvsReturnCode.invalidHandle.value
         fiber_spec.disconnect()
         self.patch.return_value.AVS_Deactivate.assert_not_called()
@@ -248,7 +248,7 @@ class TestFiberSpectrograph(unittest.TestCase):
     def test_disconnect_fails_logged(self):
         """Test that a "failed" Deactivate emits an error."""
         self.patch.return_value.AVS_Deactivate.return_value = False
-        fiber_spec = FiberSpectrograph()
+        fiber_spec = AvsFiberSpectrograph()
         with self.assertLogs(fiber_spec.log, "ERROR"):
             fiber_spec.disconnect()
         self.patch.return_value.AVS_Deactivate.assert_called_once_with(self.handle)
@@ -256,13 +256,13 @@ class TestFiberSpectrograph(unittest.TestCase):
 
     def test_disconnect_on_delete(self):
         """Test that the connection is closed if the object is deleted."""
-        fiber_spec = FiberSpectrograph()
+        fiber_spec = AvsFiberSpectrograph()
         del fiber_spec
         self.patch.return_value.AVS_Deactivate.assert_called_once_with(self.handle)
         self.patch.return_value.AVS_Done.assert_called_once_with()
 
     def test_get_status(self):
-        spec = FiberSpectrograph()
+        spec = AvsFiberSpectrograph()
         status = spec.get_status()
         self.assertEqual(status.fpga_version, self.fpga_version)
         self.assertEqual(status.firmware_version, self.firmware_version)
@@ -278,21 +278,21 @@ class TestFiberSpectrograph(unittest.TestCase):
         self.assertIsNotNone(status.config)
 
     def test_get_status_getVersionInfo_fails(self):
-        spec = FiberSpectrograph()
+        spec = AvsFiberSpectrograph()
         self.patch.return_value.AVS_GetVersionInfo.side_effect = None
         self.patch.return_value.AVS_GetVersionInfo.return_value = AvsReturnCode.ERR_DEVICE_NOT_FOUND.value
         with self.assertRaisesRegex(AvsReturnError, "GetVersionInfo.*ERR_DEVICE_NOT_FOUND"):
             spec.get_status()
 
     def test_get_status_getParameter_fails(self):
-        spec = FiberSpectrograph()
+        spec = AvsFiberSpectrograph()
         self.patch.return_value.AVS_GetParameter.side_effect = None
         self.patch.return_value.AVS_GetParameter.return_value = AvsReturnCode.ERR_INVALID_DEVICE_ID.value
         with self.assertRaisesRegex(AvsReturnError, "GetParameter.*ERR_INVALID_DEVICE_ID"):
             spec.get_status()
 
     def test_get_status_getAnalogIn_fails(self):
-        spec = FiberSpectrograph()
+        spec = AvsFiberSpectrograph()
         self.patch.return_value.AVS_GetAnalogIn.side_effect = None
         self.patch.return_value.AVS_GetAnalogIn.return_value = AvsReturnCode.ERR_TIMEOUT.value
         with self.assertRaisesRegex(AvsReturnError, "GetAnalogIn.*ERR_TIMEOUT"):

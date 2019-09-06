@@ -19,7 +19,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = ["FiberSpectrograph", "AvsIdentity", "DeviceConfig", "AvsReturnCode", "AvsReturnError"]
+__all__ = ["AvsFiberSpectrograph", "AvsIdentity", "DeviceConfig", "AvsReturnCode", "AvsReturnError"]
 
 import numpy as np
 import ctypes
@@ -85,7 +85,7 @@ def assert_avs_code(code, what):
         raise AvsReturnError(code, what)
 
 
-class FiberSpectrograph:
+class AvsFiberSpectrograph:
     """Interface for the Avantes fiber spectrograph AvaSpec library.
 
     This class follows Resource acquisition is initialization (RAII): when
