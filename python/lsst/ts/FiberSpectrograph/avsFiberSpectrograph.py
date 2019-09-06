@@ -192,6 +192,12 @@ class AvsFiberSpectrograph:
         self.log.info("Activated connection (handle=%s) with USB device %s.", self.handle, device)
         self.device = device
 
+        # store the number of pixels for use when taking exposures.
+        n_pixels = _getUShortPointer()
+        code = self.libavs.AVS_GetNumPixels(self.handle, n_pixels)
+        assert_avs_code(code, "GetNumPixels")
+        self._n_pixels = n_pixels.contents.value
+
     def disconnect(self):
         """Close the connection with the connected USB spectrograph.
         If the attempt to disconnect fails, log an error messages.
@@ -243,7 +249,7 @@ class AvsFiberSpectrograph:
             """Return a byte string decoded to ASCII with NULLs stripped."""
             return bytes(value).decode('ascii').split('\x00', 1)[0]
 
-        status = DeviceStatus(n_pixels=config.Detector_m_NrPixels,
+        status = DeviceStatus(n_pixels=self._n_pixels,
                               fpga_version=decode(fpga_version),
                               firmware_version=decode(firmware_version),
                               library_version=decode(library_version),
@@ -283,6 +289,8 @@ class AvsFiberSpectrograph:
                                             ctypes.POINTER(ctypes.c_uint),
                                             ctypes.POINTER(AvsIdentity)]
         self.libavs.AVS_Activate.argtypes = [ctypes.POINTER(AvsIdentity)]
+        self.libavs.AVS_GetNumPixels.argtypes = [ctypes.c_long,
+                                                 ctypes.POINTER(ctypes.c_ushort)]
         self.libavs.AVS_GetParameter.argtypes = [ctypes.c_long,
                                                  ctypes.c_uint,
                                                  ctypes.POINTER(ctypes.c_uint),

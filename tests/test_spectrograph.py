@@ -94,6 +94,12 @@ class TestFiberSpectrograph(unittest.TestCase):
 
         self.patch.return_value.AVS_GetAnalogIn.side_effect = mock_getAnalogIn
 
+        def mock_getNumPixels(handle, a_pNumPixels):
+            a_pNumPixels.contents.value = self.n_pixels
+            return 0
+
+        self.patch.return_value.AVS_GetNumPixels.side_effect = mock_getNumPixels
+
         # successful init() and updateUSBDevices() return the number of devices
         self.patch.return_value.AVS_Init.return_value = self.n_devices
         self.patch.return_value.AVS_UpdateUSBDevices.return_value = self.n_devices
@@ -108,7 +114,8 @@ class TestFiberSpectrograph(unittest.TestCase):
         fiber_spec = AvsFiberSpectrograph()
         self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
         self.patch.return_value.AVS_GetList.assert_called_once()
-        self.patch.return_value.AVS_Activate.assert_called_with(self.id0)
+        self.patch.return_value.AVS_Activate.assert_called_once_with(self.id0)
+        self.patch.return_value.AVS_GetNumPixels.assert_called_once()
         self.assertEqual(fiber_spec.device, self.id0)
 
     def test_connect_serial_number(self):
@@ -209,7 +216,7 @@ class TestFiberSpectrograph(unittest.TestCase):
         self.patch.return_value.AVS_Activate.assert_not_called()
 
     def test_connect_Activate_fails(self):
-        """Test that connect raises if no devices were found."""
+        """Test that connect raises if the Activate command fails."""
         self.patch.return_value.AVS_Activate.return_value = AvsReturnCode.ERR_DLL_INITIALISATION.value
 
         with self.assertRaisesRegex(AvsReturnError, "Activate"):
@@ -217,6 +224,18 @@ class TestFiberSpectrograph(unittest.TestCase):
         self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
         self.patch.return_value.AVS_GetList.assert_called_once()
         self.patch.return_value.AVS_Activate.assert_called_once()
+
+    def test_connect_GetNumPixels_fails(self):
+        """Test that connect ."""
+        self.patch.return_value.AVS_GetNumPixels.side_effect = None
+        self.patch.return_value.AVS_GetNumPixels.return_value = AvsReturnCode.ERR_DEVICE_NOT_FOUND.value
+
+        with self.assertRaisesRegex(AvsReturnError, "GetNumPixels"):
+            AvsFiberSpectrograph()
+        self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
+        self.patch.return_value.AVS_GetList.assert_called_once()
+        self.patch.return_value.AVS_Activate.assert_called_once()
+        self.patch.return_value.AVS_GetNumPixels.assert_called_once()
 
     def test_disconnect(self):
         """Test a successful USB disconnect command."""
