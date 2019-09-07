@@ -21,12 +21,14 @@
 
 __all__ = ["AvsFiberSpectrograph", "AvsIdentity", "DeviceConfig", "AvsReturnCode", "AvsReturnError"]
 
-import numpy as np
+import asyncio
 import ctypes
 import dataclasses
 import enum
 import logging
 import struct
+
+import numpy as np
 
 # Fully-qualified path to the vendor-provided libavs AvaSpec library.
 # If installed via the vendor packages, it will be in `/usr/local/lib`.
@@ -261,12 +263,53 @@ class AvsFiberSpectrograph:
     async def expose(self, duration):
         """Take an exposure with the currently connected spectrograph.
 
+        Parameters
+        ----------
+        duration : `float`
+            Integration time of the exposure in seconds.
+
         Returns
         -------
+        wavelength : `np.ndarray`
+            The 1-d wavelength solution provided by the instrument.
         spectrum : `numpy.ndarray`
             The 1-d spectrum measured by the instrument.
         """
-        pass
+        config = MeasureConfig()
+        config.IntegrationTime = duration * 1000  # seconds->milliseconds
+        config.StartPixel = 0
+        config.StopPixel = self._n_pixels - 1
+        config.NrAverages = 1
+        self.log.debug("Preparing %ss measurement.", duration)
+        code = self.libavs.AVS_PrepareMeasure(self.handle, config)
+        assert_avs_code(code, "PrepareMeasure")
+
+        self.log.info("Beginning %ss measurement.", duration)
+        code = self.libavs.AVS_Measure(self.handle, 0, 1)
+        assert_avs_code(code, "Measure")
+
+        # get the wavelength range while we wait for the exposure.
+        wavelength = (ctypes.c_double * self._n_pixels)()
+        code = self.libavs.AVS_GetLambda(self.handle, wavelength)
+        assert_avs_code(code, "GetLambda")
+
+        await asyncio.sleep(duration)
+
+        data_available = 0
+        while data_available != 1:
+            self.log.debug("Polling for measurement.")
+            data_available = self.libavs.AVS_PollScan(self.handle)
+            assert_avs_code(data_available, "PollScan")
+            # Avantes docs say not to poll too rapidly, or it will overwhelm
+            # the spectrograph CPU. They suggest waiting at least 1 ms.
+            await asyncio.sleep(0.001)
+
+        self.log.debug("Reading measured data from spectrograph.")
+        time_label = _getUIntPointer()  # NOTE: it's not clear from the docs what this is for
+        spectrum = (ctypes.c_double * self._n_pixels)()
+        code = self.libavs.AVS_GetScopeData(self.handle, time_label, spectrum)
+        assert_avs_code(code, "GetScopeData")
+        return np.array(wavelength), np.array(spectrum)
 
     async def stop_exposure(self):
         """Cancel a currently running exposure and reset the spectrograph.
@@ -302,6 +345,15 @@ class AvsFiberSpectrograph:
         self.libavs.AVS_GetAnalogIn.argtypes = [ctypes.c_long,
                                                 ctypes.c_ubyte,
                                                 ctypes.POINTER(ctypes.c_float)]
+        self.libavs.AVS_PrepareMeasure.argtypes = [ctypes.c_long,
+                                                   ctypes.POINTER(MeasureConfig)]
+        # Measure's second argument is the callback function pointer, but we
+        # aren't using callbacks here, so it will always be NULL==0.
+        self.libavs.AVS_Measure.argtypes = [ctypes.c_long,
+                                            ctypes.c_int,
+                                            ctypes.c_short]
+        self.libavs.AVS_GetLambda.argtypes = [ctypes.c_long,
+                                              ctypes.POINTER(ctypes.c_double)]
 
 
 # size of these character fields in bytes
@@ -363,8 +415,8 @@ class DeviceConfig(ctypes.Structure):
                 ("StandAlone_m_Meas_m_IntegrationTime", ctypes.c_float),
                 ("StandAlone_m_Meas_m_IntegrationDelay", ctypes.c_uint32),
                 ("StandAlone_m_Meas_m_NrAverages", ctypes.c_uint32),
-                ("StandAlone_m_Meas_m_CorDynDark_m_Enable", ctypes.c_uint8),
-                ("StandAlone_m_Meas_m_CorDynDark_m_ForgetPercentage", ctypes.c_uint8),
+                ("StandAlone_m_Meas_m_DynamicDarkCorrection_m_Enable", ctypes.c_uint8),
+                ("StandAlone_m_Meas_m_DynamicDarkCorrection_m_ForgetPercentage", ctypes.c_uint8),
                 ("StandAlone_m_Meas_m_Smoothing_m_SmoothPix", ctypes.c_uint16),
                 ("StandAlone_m_Meas_m_Smoothing_m_SmoothModel", ctypes.c_uint8),
                 ("StandAlone_m_Meas_m_SaturationDetection", ctypes.c_uint8),
@@ -413,6 +465,32 @@ class DeviceConfig(ctypes.Structure):
         attrs = ', '.join(f"{x[0]}={to_str(getattr(self, x[0]))}" for x in self._fields_
                           if x[0] not in too_long)
         return f"DeviceConfigType({attrs})"
+
+
+class MeasureConfig(ctypes.Structure):
+    _pack_ = 1
+    _fields_ = [("StartPixel", ctypes.c_uint16),
+                ("StopPixel", ctypes.c_uint16),
+                ("IntegrationTime", ctypes.c_float),  # milliseconds
+                ("IntegrationDelay", ctypes.c_uint32),  # internal FGPA clock cycle
+                ("NrAverages", ctypes.c_uint32),
+                ("DynamicDarkCorrection_Enable", ctypes.c_uint8),
+                ("DynamicDarkCorrection_ForgetPercentage", ctypes.c_uint8),
+                ("Smoothing_SmoothPix", ctypes.c_uint16),
+                ("Smoothing_SmoothModel", ctypes.c_uint8),
+                ("SaturationDetection", ctypes.c_uint8),
+                ("Trigger_Mode", ctypes.c_uint8),
+                ("Trigger_Source", ctypes.c_uint8),
+                ("Trigger_SourceType", ctypes.c_uint8),
+                ("Control_StrobeControl", ctypes.c_uint16),
+                ("Control_LaserDelay", ctypes.c_uint32),
+                ("Control_LaserWidth", ctypes.c_uint32),
+                ("Control_LaserWaveLength", ctypes.c_float),
+                ("Control_StoreToRam", ctypes.c_uint16)]
+
+    def __repr__(self):
+        attrs = ', '.join(f"{x[0]}={getattr(self, x[0])}" for x in self._fields_)
+        return f"MeasureConfig({attrs})"
 
 
 @enum.unique

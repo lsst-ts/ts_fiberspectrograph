@@ -19,6 +19,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import asynctest
 import unittest
 import unittest.mock
 
@@ -30,7 +31,7 @@ from lsst.ts.FiberSpectrograph import AvsIdentity
 from lsst.ts.FiberSpectrograph import DeviceConfig
 
 
-class TestFiberSpectrograph(unittest.TestCase):
+class TestFiberSpectrograph(asynctest.TestCase):
     """Tests of the python API for the Avantes AvaSpec-ULS-RS-TEC.
     """
     def setUp(self):
@@ -98,7 +99,14 @@ class TestFiberSpectrograph(unittest.TestCase):
             a_pNumPixels.contents.value = self.n_pixels
             return 0
 
+        self.wavelength = np.arange(0, self.n_pixels)
         self.patch.return_value.AVS_GetNumPixels.side_effect = mock_getNumPixels
+
+        def mock_getLambda(handle, a_pWavelength):
+            a_pWavelength[:] = self.wavelength
+            return 0
+
+        self.patch.return_value.AVS_GetLambda.side_effect = mock_getLambda
 
         # successful init() and updateUSBDevices() return the number of devices
         self.patch.return_value.AVS_Init.return_value = self.n_devices
@@ -108,6 +116,31 @@ class TestFiberSpectrograph(unittest.TestCase):
         self.patch.return_value.AVS_Activate.return_value = self.handle
         # successful disconnect() returns True
         self.patch.return_value.AVS_Deactivate.return_value = True
+
+        def mock_prepareMeasure(handle, a_pMeasConfig):
+            """Save the MeasureConfig input for checking against later."""
+            self.measure_config_sent = a_pMeasConfig
+            return 0
+
+        self.patch.return_value.AVS_PrepareMeasure.side_effect = mock_prepareMeasure
+
+        # Measure doesn't have any obvious effects itself.
+        self.patch.return_value.AVS_Measure.return_value = 0
+
+        # Require four polls of the device before a measurement is ready
+        self.patch.return_value.AVS_PollScan.side_effect = [0, 0, 0, 1]
+
+        self.spectrum = np.arange(0, self.n_pixels) * 2
+
+        def mock_getScopeData(handle, a_pTimeLabel, a_pSpectrum):
+            a_pSpectrum[:] = self.spectrum
+            return 0
+
+        self.patch.return_value.AVS_GetScopeData.side_effect = mock_getScopeData
+
+    def tearDown(self):
+        # ensure this is cleared before another mock_measure call
+        self.measure_config_sent = None
 
     def test_connect(self):
         """Test connecting to the first device."""
@@ -316,6 +349,80 @@ class TestFiberSpectrograph(unittest.TestCase):
         self.patch.return_value.AVS_GetAnalogIn.return_value = AvsReturnCode.ERR_TIMEOUT.value
         with self.assertRaisesRegex(AvsReturnError, "GetAnalogIn.*ERR_TIMEOUT"):
             spec.get_status()
+
+    async def test_expose(self):
+        duration = 0.5  # seconds
+        spec = AvsFiberSpectrograph()
+
+        result = await spec.expose(duration)
+        self.patch.return_value.AVS_PrepareMeasure.assert_called_once()
+        # integration time is in ms, duration in seconds
+        self.assertEqual(self.measure_config_sent.IntegrationTime, duration * 1000)
+        self.assertEqual(self.measure_config_sent.StartPixel, 0)
+        self.assertEqual(self.measure_config_sent.StopPixel, self.n_pixels - 1)
+        self.assertEqual(self.measure_config_sent.NrAverages, 1)
+        self.patch.return_value.AVS_Measure.assert_called_once_with(self.handle, 0, 1)
+        self.assertEqual(self.patch.return_value.AVS_PollScan.call_count, 4)
+        np.testing.assert_array_equal(result[0], self.wavelength)
+        np.testing.assert_array_equal(result[1], self.spectrum)
+
+    async def test_expose_prepare_fails(self):
+        duration = 0.5  # seconds
+        self.patch.return_value.AVS_PrepareMeasure.side_effect = None
+        self.patch.return_value.AVS_PrepareMeasure.return_value = AvsReturnCode.ERR_INVALID_PARAMETER.value
+
+        spec = AvsFiberSpectrograph()
+        with self.assertRaisesRegex(AvsReturnError, "PrepareMeasure"):
+            await spec.expose(duration)
+        self.patch.return_value.AVS_PrepareMeasure.assert_called_once()
+        self.patch.return_value.AVS_Measure.assert_not_called()
+
+    async def test_expose_measure_fails(self):
+        duration = 0.5  # seconds
+        self.patch.return_value.AVS_Measure.side_effect = None
+        self.patch.return_value.AVS_Measure.return_value = AvsReturnCode.ERR_INVALID_STATE.value
+
+        spec = AvsFiberSpectrograph()
+        with self.assertRaisesRegex(AvsReturnError, "Measure"):
+            await spec.expose(duration)
+        self.patch.return_value.AVS_PrepareMeasure.assert_called_once()
+        self.patch.return_value.AVS_Measure.assert_called_once_with(self.handle, 0, 1)
+
+    async def test_expose_GetLambda_fails(self):
+        duration = 0.5  # seconds
+        self.patch.return_value.AVS_GetLambda.side_effect = None
+        self.patch.return_value.AVS_GetLambda.return_value = AvsReturnCode.ERR_INVALID_DEVICE_ID.value
+
+        spec = AvsFiberSpectrograph()
+        with self.assertRaisesRegex(AvsReturnError, "GetLambda"):
+            await spec.expose(duration)
+        self.patch.return_value.AVS_PrepareMeasure.assert_called_once()
+        self.patch.return_value.AVS_Measure.assert_called_once_with(self.handle, 0, 1)
+        self.patch.return_value.AVS_PollScan.assert_not_called()
+
+    async def test_expose_PollScan_fails(self):
+        duration = 0.5  # seconds
+        self.patch.return_value.AVS_PollScan.side_effect = None
+        self.patch.return_value.AVS_PollScan.return_value = AvsReturnCode.ERR_INVALID_DEVICE_ID.value
+
+        spec = AvsFiberSpectrograph()
+        with self.assertRaisesRegex(AvsReturnError, "PollScan"):
+            await spec.expose(duration)
+        self.patch.return_value.AVS_PrepareMeasure.assert_called_once()
+        self.patch.return_value.AVS_Measure.assert_called_once_with(self.handle, 0, 1)
+        self.patch.return_value.AVS_PollScan.assert_called_once_with(self.handle)
+
+    async def test_expose_GetScopeData_fails(self):
+        duration = 0.5  # seconds
+        self.patch.return_value.AVS_GetScopeData.side_effect = None
+        self.patch.return_value.AVS_GetScopeData.return_value = AvsReturnCode.ERR_INVALID_MEAS_DATA.value
+
+        spec = AvsFiberSpectrograph()
+        with self.assertRaisesRegex(AvsReturnError, "GetScopeData"):
+            await spec.expose(duration)
+        self.patch.return_value.AVS_PrepareMeasure.assert_called_once()
+        self.patch.return_value.AVS_Measure.assert_called_once_with(self.handle, 0, 1)
+        self.assertEqual(self.patch.return_value.AVS_PollScan.call_count, 4)
 
 
 class TestAvsReturnError(unittest.TestCase):
