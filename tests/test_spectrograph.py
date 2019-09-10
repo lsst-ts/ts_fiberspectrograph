@@ -149,12 +149,12 @@ class TestFiberSpectrograph(asynctest.TestCase):
 
     def test_connect(self):
         """Test connecting to the first device."""
-        fiber_spec = AvsFiberSpectrograph()
+        spec = AvsFiberSpectrograph()
         self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
         self.patch.return_value.AVS_GetList.assert_called_once()
         self.patch.return_value.AVS_Activate.assert_called_once_with(self.id0)
         self.patch.return_value.AVS_GetNumPixels.assert_called_once()
-        self.assertEqual(fiber_spec.device, self.id0)
+        self.assertEqual(spec.device, self.id0)
 
     def test_connect_serial_number(self):
         """Test connecting to a device with a specific serial number."""
@@ -170,11 +170,11 @@ class TestFiberSpectrograph(asynctest.TestCase):
         self.patch.return_value.AVS_GetList.side_effect = mock_getList
         self.patch.return_value.AVS_UpdateUSBDevices.return_value = self.n_devices
 
-        fiber_spec = AvsFiberSpectrograph(serial_number=serial_number)
+        spec = AvsFiberSpectrograph(serial_number=serial_number)
         self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
         self.patch.return_value.AVS_GetList.assert_called_once()
         self.patch.return_value.AVS_Activate.assert_called_with(id1)
-        self.assertEqual(fiber_spec.device, id1)
+        self.assertEqual(spec.device, id1)
 
     def test_connect_no_serial_number_two_devices_fails(self):
         serial_number = "54321"
@@ -277,44 +277,44 @@ class TestFiberSpectrograph(asynctest.TestCase):
 
     def test_disconnect(self):
         """Test a successful USB disconnect command."""
-        fiber_spec = AvsFiberSpectrograph()
-        fiber_spec.disconnect()
+        spec = AvsFiberSpectrograph()
+        spec.disconnect()
         self.patch.return_value.AVS_Deactivate.assert_called_once_with(self.handle)
         self.patch.return_value.AVS_Done.assert_called_once_with()
-        self.assertIsNone(fiber_spec.handle)
+        self.assertIsNone(spec.handle)
 
     def test_disconnect_no_handle(self):
         """Test that we do not attempt to disconnect if there is no device
         handle.
         """
-        fiber_spec = AvsFiberSpectrograph()
-        fiber_spec.handle = None
-        fiber_spec.disconnect()
+        spec = AvsFiberSpectrograph()
+        spec.handle = None
+        spec.disconnect()
         self.patch.return_value.AVS_Deactivate.assert_not_called()
         self.patch.return_value.AVS_Done.assert_called_once_with()
 
     def test_disconnect_bad_handle(self):
         """Do not attempt to disconnect if the device handle is bad.
         """
-        fiber_spec = AvsFiberSpectrograph()
-        fiber_spec.handle = AvsReturnCode.invalidHandle.value
-        fiber_spec.disconnect()
+        spec = AvsFiberSpectrograph()
+        spec.handle = AvsReturnCode.invalidHandle.value
+        spec.disconnect()
         self.patch.return_value.AVS_Deactivate.assert_not_called()
         self.patch.return_value.AVS_Done.assert_called_once_with()
 
     def test_disconnect_fails_logged(self):
         """Test that a "failed" Deactivate emits an error."""
         self.patch.return_value.AVS_Deactivate.return_value = False
-        fiber_spec = AvsFiberSpectrograph()
-        with self.assertLogs(fiber_spec.log, "ERROR"):
-            fiber_spec.disconnect()
+        spec = AvsFiberSpectrograph()
+        with self.assertLogs(spec.log, "ERROR"):
+            spec.disconnect()
         self.patch.return_value.AVS_Deactivate.assert_called_once_with(self.handle)
         self.patch.return_value.AVS_Done.assert_called_once_with()
 
     def test_disconnect_on_delete(self):
         """Test that the connection is closed if the object is deleted."""
-        fiber_spec = AvsFiberSpectrograph()
-        del fiber_spec
+        spec = AvsFiberSpectrograph()
+        del spec
         self.patch.return_value.AVS_Deactivate.assert_called_once_with(self.handle)
         self.patch.return_value.AVS_Done.assert_called_once_with()
 
