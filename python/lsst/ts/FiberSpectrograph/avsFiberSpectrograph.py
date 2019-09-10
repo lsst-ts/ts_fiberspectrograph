@@ -133,6 +133,10 @@ class AvsFiberSpectrograph:
             import sys
             logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
 
+        # create a "done" future
+        self._expose_task = asyncio.Future()
+        self._expose_task.set_result(None)
+
         self.libavs = ctypes.CDLL(LIBRARY_PATH)
 
         # NOTE: AVS_Init(0) initializes the USB library, not device 0.
@@ -205,6 +209,7 @@ class AvsFiberSpectrograph:
         If the attempt to disconnect fails, log an error messages.
         """
         if self.handle is not None and self.handle != AvsReturnCode.invalidHandle:
+            self.stop_exposure()  # stop any active exposure
             result = self.libavs.AVS_Deactivate(self.handle)
             if not result:
                 self.log.error("Could not deactivate device %s with handle %s. Assuming it is safe to "
@@ -263,6 +268,8 @@ class AvsFiberSpectrograph:
     async def expose(self, duration):
         """Take an exposure with the currently connected spectrograph.
 
+        Returns `None` if the exposure was cancelled.
+
         Parameters
         ----------
         duration : `float`
@@ -293,7 +300,12 @@ class AvsFiberSpectrograph:
         code = self.libavs.AVS_GetLambda(self.handle, wavelength)
         assert_avs_code(code, "GetLambda")
 
-        await asyncio.sleep(duration)
+        self._expose_task = asyncio.create_task(asyncio.sleep(duration))
+        try:
+            await self._expose_task
+        except asyncio.CancelledError:
+            self.log.info("Running exposure cancelled.")
+            return None
 
         data_available = 0
         while data_available != 1:
@@ -311,10 +323,17 @@ class AvsFiberSpectrograph:
         assert_avs_code(code, "GetScopeData")
         return np.array(wavelength), np.array(spectrum)
 
-    async def stop_exposure(self):
+    def stop_exposure(self):
         """Cancel a currently running exposure and reset the spectrograph.
+
+        If there is no currently active exposure, this does nothing.
         """
-        pass
+        if not self._expose_task.done():
+            # only cancel a running exposure
+            self.log.info("Cancelling running exposure...")
+            code = self.libavs.AVS_StopMeasure(self.handle)
+            self._expose_task.cancel()
+            assert_avs_code(code, "StopMeasure")
 
     def __del__(self):
         self.disconnect()

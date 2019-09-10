@@ -19,7 +19,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import asyncio
 import asynctest
+import time
 import unittest
 import unittest.mock
 
@@ -137,6 +139,9 @@ class TestFiberSpectrograph(asynctest.TestCase):
             return 0
 
         self.patch.return_value.AVS_GetScopeData.side_effect = mock_getScopeData
+
+        # StopMeasure doesn't have any obvious effects itself.
+        self.patch.return_value.AVS_StopMeasure.return_value = 0
 
     def tearDown(self):
         # ensure this is cleared before another mock_measure call
@@ -354,7 +359,11 @@ class TestFiberSpectrograph(asynctest.TestCase):
         duration = 0.5  # seconds
         spec = AvsFiberSpectrograph()
 
+        t0 = time.perf_counter()
         result = await spec.expose(duration)
+        t1 = time.perf_counter()
+
+        self.assertGreater(t1 - t0, duration)
         self.patch.return_value.AVS_PrepareMeasure.assert_called_once()
         # integration time is in ms, duration in seconds
         self.assertEqual(self.measure_config_sent.IntegrationTime, duration * 1000)
@@ -423,6 +432,68 @@ class TestFiberSpectrograph(asynctest.TestCase):
         self.patch.return_value.AVS_PrepareMeasure.assert_called_once()
         self.patch.return_value.AVS_Measure.assert_called_once_with(self.handle, 0, 1)
         self.assertEqual(self.patch.return_value.AVS_PollScan.call_count, 4)
+
+    async def test_stop_exposure(self):
+        """Test that `stop_exposure` makes ends the active `expose`."""
+        duration = 5  # seconds
+        spec = AvsFiberSpectrograph()
+
+        t0 = time.perf_counter()
+        task = asyncio.create_task(spec.expose(duration))
+        await asyncio.sleep(0.1)  # give the event loop time to start
+        spec.stop_exposure()
+        await task
+        t1 = time.perf_counter()
+
+        self.assertLess(t1 - t0, 1)  # cancelling the task should make it end much sooner than the duration
+        self.patch.return_value.AVS_StopMeasure.assert_called_with(self.handle)
+        self.assertIsNone(task.result())
+
+    async def test_stop_exposure_no_expose_running(self):
+        """Test that stop_exposure does nothing if there is no active
+        `expose` command.
+        """
+        spec = AvsFiberSpectrograph()
+        spec.stop_exposure()
+        self.patch.return_value.AVS_StopMeasure.assert_not_called()
+
+    async def test_stop_exposure_fails(self):
+        """Test `AVS_StopMeasure` returning an error: the existing exposure
+        task should be cancelled, but `stop_exposure` should also raise."""
+        duration = 5  # seconds
+        self.patch.return_value.AVS_StopMeasure.return_value = AvsReturnCode.ERR_TIMEOUT.value
+        spec = AvsFiberSpectrograph()
+
+        t0 = time.perf_counter()
+        task = asyncio.create_task(spec.expose(duration))
+        await asyncio.sleep(0.1)  # give the event loop time to start
+        with self.assertRaisesRegex(AvsReturnError, "StopMeasure"):
+            spec.stop_exposure()
+        await task
+        t1 = time.perf_counter()
+
+        self.assertLess(t1 - t0, 1)  # cancelling the task should make it end much sooner than the duration
+        self.patch.return_value.AVS_StopMeasure.assert_called_with(self.handle)
+        self.assertIsNone(task.result())
+
+    async def test_disconnect_active_exposure(self):
+        """Test that disconnecting cancels an active exposure."""
+        duration = 5  # seconds
+        spec = AvsFiberSpectrograph()
+
+        t0 = time.perf_counter()
+        task = asyncio.create_task(spec.expose(duration))
+        await asyncio.sleep(0.1)  # give the event loop time to start
+        spec.disconnect()
+        await task
+        t1 = time.perf_counter()
+
+        self.assertLess(t1 - t0, 1)  # cancelling the task should make it end much sooner than the duration
+        self.patch.return_value.AVS_StopMeasure.assert_called_with(self.handle)
+        self.assertIsNone(task.result())
+        self.patch.return_value.AVS_Deactivate.assert_called_once_with(self.handle)
+        self.patch.return_value.AVS_Done.assert_called_once_with()
+        self.assertIsNone(spec.handle)
 
 
 class TestAvsReturnError(unittest.TestCase):
