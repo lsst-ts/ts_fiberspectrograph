@@ -161,9 +161,10 @@ class AvsFiberSpectrograph:
         LookupError
             Raised if there is no device with the specified serial number.
         RuntimeError
-            * Raised if multiple devices are connected and no serial number
+            Raised if multiple devices are connected and no serial number
             was specified.
-            * Raised if there is an error connecting to the requested device.
+        AvsReturnError
+            Raised if there is an error connecting to the requested device.
         """
         n_devices = self.libavs.AVS_UpdateUSBDevices()
         if n_devices == 0:
@@ -233,6 +234,11 @@ class AvsFiberSpectrograph:
         status : `DeviceStatus`
             The current status of the spectrograph, including temperature,
             exposure status, etc.
+
+        Raises
+        ------
+        AvsReturnError
+            Raised if there is an error querying the device.
         """
         fpga_version = (ctypes.c_ubyte * 16)()
         firmware_version = (ctypes.c_ubyte * 16)()
@@ -281,6 +287,12 @@ class AvsFiberSpectrograph:
             The 1-d wavelength solution provided by the instrument.
         spectrum : `numpy.ndarray`
             The 1-d spectrum measured by the instrument.
+
+        Raises
+        ------
+        AvsReturnError
+            Raised if there is an error in preparation, measurement, or
+            readout from the device.
         """
         config = MeasureConfig()
         config.IntegrationTime = duration * 1000  # seconds->milliseconds
@@ -327,6 +339,11 @@ class AvsFiberSpectrograph:
         """Cancel a currently running exposure and reset the spectrograph.
 
         If there is no currently active exposure, this does nothing.
+
+        Raises
+        ------
+        AvsReturnError
+            Raised if there is an error stopping the exposure on the device.
         """
         if not self._expose_task.done():
             # only cancel a running exposure
