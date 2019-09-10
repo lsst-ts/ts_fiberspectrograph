@@ -287,7 +287,37 @@ class AvsFiberSpectrograph:
     async def expose(self, duration):
         """Take an exposure with the currently connected spectrograph.
 
-        Returns `None` if the exposure was cancelled.
+        Parameters
+        ----------
+        duration : `float`
+            Integration time of the exposure in seconds.
+
+        Returns
+        -------
+        wavelength : `np.ndarray`
+            The 1-d wavelength solution provided by the instrument.
+        spectrum : `numpy.ndarray`
+            The 1-d spectrum measured by the instrument.
+
+        Raises
+        ------
+        RuntimeError
+            Raised if there is an active exposure currently ongoing.
+        AvsReturnError
+            Raised if there is an error in preparation, measurement, or
+            readout from the device.
+        asyncio.CancelledError
+            Raised if the exposure is stopped before it is read out.
+        """
+        if not self._expose_task.done():
+            raise RuntimeError("Cannot start new exposure until current exposure finishes.")
+        self._expose_task = asyncio.create_task(self._do_expose(duration))
+        await self._expose_task
+        return self._expose_task.result()
+
+    async def _do_expose(self, duration):
+        """Internal method to set up an async task to manage taking an
+        exposure.
 
         Parameters
         ----------
@@ -306,6 +336,8 @@ class AvsFiberSpectrograph:
         AvsReturnError
             Raised if there is an error in preparation, measurement, or
             readout from the device.
+        asyncio.CancelledError
+            Raised if the exposure is stopped before it is read out.
         """
         config = MeasureConfig()
         config.IntegrationTime = duration * 1000  # seconds->milliseconds
@@ -325,12 +357,8 @@ class AvsFiberSpectrograph:
         code = self.libavs.AVS_GetLambda(self.handle, wavelength)
         assert_avs_code(code, "GetLambda")
 
-        self._expose_task = asyncio.create_task(asyncio.sleep(duration))
-        try:
-            await self._expose_task
-        except asyncio.CancelledError:
-            self.log.info("Running exposure cancelled.")
-            return None
+        measure_sleep = asyncio.create_task(asyncio.sleep(duration))
+        await measure_sleep
 
         data_available = 0
         while data_available != 1:
