@@ -207,16 +207,29 @@ class AvsFiberSpectrograph:
 
     def disconnect(self):
         """Close the connection with the connected USB spectrograph.
-        If the attempt to disconnect fails, log an error messages.
+
+        If the attempt to disconnect fails, log an error message but still
+        try to release the AVS library port.
+
+        Note
+        ----
+        This method should not raise.
         """
-        if self.handle is not None and self.handle != AvsReturnCode.invalidHandle:
-            self.stop_exposure()  # stop any active exposure
-            result = self.libavs.AVS_Deactivate(self.handle)
-            if not result:
-                self.log.error("Could not deactivate device %s with handle %s. Assuming it is safe to "
-                               "close the communication port anyway.", self.device, self.handle)
-            self.handle = None
-        self.libavs.AVS_Done()
+        try:
+            if self.handle is not None and self.handle != AvsReturnCode.invalidHandle:
+                try:
+                    self.stop_exposure()  # stop any active exposure
+                except Exception as e:
+                    self.log.error("Error stopping exposure during disconnect. %s: %s", type(e).__name__, e)
+                result = self.libavs.AVS_Deactivate(self.handle)
+                if not result:
+                    self.log.error("Could not deactivate device %s with handle %s. Assuming it is safe to "
+                                   "close the communication port anyway.", self.device, self.handle)
+                self.handle = None
+        except Exception as e:
+            self.log.error("Error deactivating device. %s: %s", type(e).__name__, e)
+        finally:
+            self.libavs.AVS_Done()
 
     def get_status(self, full=False):
         """Get the status of the currently connected spectrograph.

@@ -318,6 +318,17 @@ class TestFiberSpectrograph(asynctest.TestCase):
         self.patch.return_value.AVS_Deactivate.assert_called_once_with(self.handle)
         self.patch.return_value.AVS_Done.assert_called_once_with()
 
+    def test_disconnect_other_exception(self):
+        """Test that disconnect continues if there some other exception raised
+        during disconnect.
+        """
+        self.patch.return_value.AVS_Deactivate.side_effect = RuntimeError
+        spec = AvsFiberSpectrograph()
+        with self.assertLogs(spec.log, "ERROR"):
+            spec.disconnect()
+        self.patch.return_value.AVS_Deactivate.assert_called_once_with(self.handle)
+        self.patch.return_value.AVS_Done.assert_called_once_with()
+
     def test_get_status(self):
         spec = AvsFiberSpectrograph()
         status = spec.get_status()
@@ -485,6 +496,32 @@ class TestFiberSpectrograph(asynctest.TestCase):
         task = asyncio.create_task(spec.expose(duration))
         await asyncio.sleep(0.1)  # give the event loop time to start
         spec.disconnect()
+        await task
+        t1 = time.perf_counter()
+
+        self.assertLess(t1 - t0, 1)  # cancelling the task should make it end much sooner than the duration
+        self.patch.return_value.AVS_StopMeasure.assert_called_with(self.handle)
+        self.assertIsNone(task.result())
+        self.patch.return_value.AVS_Deactivate.assert_called_once_with(self.handle)
+        self.patch.return_value.AVS_Done.assert_called_once_with()
+        self.assertIsNone(spec.handle)
+
+    async def test_disconnect_stop_exposure_exception(self):
+        """Test that disconnect does not raise if stop_exposure raises, but
+        does log an error message, and continues with deactivating the device.
+        """
+        duration = 5  # seconds
+        spec = AvsFiberSpectrograph()
+        self.patch.return_value.AVS_StopMeasure.return_value = AvsReturnCode.ERR_INVALID_PARAMETER.value
+
+        t0 = time.perf_counter()
+        task = asyncio.create_task(spec.expose(duration))
+        await asyncio.sleep(0.1)  # give the event loop time to start
+        try:
+            with self.assertLogs(spec.log, "ERROR"):
+                spec.disconnect()
+        except AvsReturnError:
+            self.fail("disconnect() should not raise an exception, even if `stop_exposure` does.")
         await task
         t1 = time.perf_counter()
 
