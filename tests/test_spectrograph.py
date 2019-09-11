@@ -21,7 +21,10 @@
 
 import asyncio
 import asynctest
+import contextlib
+import io
 import itertools
+import logging
 import time
 import unittest
 import unittest.mock
@@ -155,6 +158,24 @@ class TestFiberSpectrograph(asynctest.TestCase):
         self.patch.return_value.AVS_GetList.assert_called_once()
         self.patch.return_value.AVS_Activate.assert_called_once_with(self.id0)
         self.patch.return_value.AVS_GetNumPixels.assert_called_once()
+        self.assertEqual(spec.device, self.id0)
+
+    def test_create_with_logger(self):
+        """Test that a passed-in logger is used for log messages."""
+        log = logging.Logger("testingLogger")
+        with self.assertLogs(log, logging.DEBUG):
+            spec = AvsFiberSpectrograph(log=log)
+        # simple check that the instance was created successfully
+        self.assertEqual(spec.device, self.id0)
+
+    def test_create_with_stdout_log(self):
+        """Test that the ``log_to_stdout`` init option works."""
+        capture = io.StringIO()
+        with contextlib.redirect_stdout(capture):
+            spec = AvsFiberSpectrograph(log_to_stdout=True)
+        self.assertIn("Found 1 attached USB Avantes device", capture.getvalue())
+        self.assertIn("Activated connection", capture.getvalue())
+        # simple check that the instance was created successfully
         self.assertEqual(spec.device, self.id0)
 
     def test_connect_serial_number(self):

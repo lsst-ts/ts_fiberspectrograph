@@ -128,6 +128,9 @@ class AvsFiberSpectrograph:
     def __init__(self, serial_number=None, log=None, log_to_stdout=False):
         if log is None:
             self.log = logging.getLogger('FiberSpectrograph')
+        else:
+            self.log = log
+
         if log_to_stdout:
             self.log.setLevel(logging.DEBUG)
             import sys
