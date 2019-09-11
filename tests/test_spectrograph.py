@@ -31,6 +31,7 @@ import unittest.mock
 
 import numpy as np
 
+from lsst.ts.FiberSpectrograph import AvsSimulator
 from lsst.ts.FiberSpectrograph import AvsFiberSpectrograph
 from lsst.ts.FiberSpectrograph import AvsReturnCode, AvsReturnError
 from lsst.ts.FiberSpectrograph import AvsIdentity
@@ -44,112 +45,22 @@ class TestFiberSpectrograph(asynctest.TestCase):
         """This setUp configures the mock for a "no error conditions" use case,
         with all methods behaving as if one device is connected and behaving.
         """
-        self.n_devices = 1  # Pretend one device is connected
-        self.serial_number = "123456789"
-        self.handle = 314159
+        patcher = AvsSimulator()
+        self.patch = patcher.start(testCase=self)
 
-        patcher = unittest.mock.patch("ctypes.CDLL")
-        self.patch = patcher.start()
-        self.addCleanup(patcher.stop)
+        # extract some properties of the patcher to more easily test against
+        self.handle = patcher.handle
+        self.id0 = patcher.id0
+        self.n_pixels = patcher.n_pixels
+        self.temperature_setpoint = patcher.temperature_setpoint
+        self.temperature = patcher.temperature
+        self.wavelength = patcher.wavelength
+        self.spectrum = patcher.spectrum
+        self.fpga_version = patcher.fpga_version
+        self.firmware_version = patcher.firmware_version
+        self.library_version = patcher.library_version
 
-        name = b"Fake Spectrograph"
-        # DeviceStatus (char): 0=unknown, 1=available, 2=in use by this,
-        # 3=in use by other, >3 = irrelevant to USB
-        status = 0x01
-        self.id0 = AvsIdentity(bytes(str(self.serial_number), "ascii"), name, status)
-
-        def mock_getList(a_listSize, a_pRequiredSize, a_pList):
-            """Pretend only one device is connected, and that the correct
-            amount of space was allocated for the list."""
-            a_pList[0] = self.id0
-            return self.n_devices
-        self.patch.return_value.AVS_GetList.side_effect = mock_getList
-
-        self.n_pixels = 3141
-        self.temperature_setpoint = -273.0
-        # thermistor voltage is converted to temperature via a polynomial
-        self.tec_coefficients = np.array((12, 34, 56, 78, 90), dtype=np.float32)
-        self.tec_voltage = 6.4
-        self.temperature = sum(x*self.tec_voltage**i for i, x in enumerate(self.tec_coefficients))
-
-        def mock_getParameter(handle, a_Size, a_pRequiredSize, config):
-            """Assume a_pData has the correct amount of space allocated."""
-            config.Detector_m_NrPixels = self.n_pixels
-            config.TecControl_m_Setpoint = self.temperature_setpoint
-            config.Temperature_3_m_aFit[:] = self.tec_coefficients
-            return 0
-
-        self.patch.return_value.AVS_GetParameter.side_effect = mock_getParameter
-
-        self.fpga_version = "fpga12345678901"
-        self.firmware_version = "firmware123456"
-        self.library_version = "library123456"
-
-        def mock_getVersionInfo(handle, a_pFPGAVersion, a_pFirmwareVersion, a_pLibVersion):
-            a_pFPGAVersion[:15] = self.fpga_version.encode('ascii')
-            a_pFirmwareVersion[:14] = self.firmware_version.encode('ascii')
-            a_pLibVersion[:13] = self.library_version.encode('ascii')
-            return 0
-
-        self.patch.return_value.AVS_GetVersionInfo.side_effect = mock_getVersionInfo
-
-        def mock_getAnalogIn(handle, a_AnalogInId, a_pAnalogIn):
-            """Return a fake temperature measurement."""
-            if a_AnalogInId == 0:
-                a_pAnalogIn.contents.value = self.tec_voltage
-            return 0
-
-        self.patch.return_value.AVS_GetAnalogIn.side_effect = mock_getAnalogIn
-
-        def mock_getNumPixels(handle, a_pNumPixels):
-            a_pNumPixels.contents.value = self.n_pixels
-            return 0
-
-        self.wavelength = np.arange(0, self.n_pixels)
-        self.patch.return_value.AVS_GetNumPixels.side_effect = mock_getNumPixels
-
-        def mock_getLambda(handle, a_pWavelength):
-            a_pWavelength[:] = self.wavelength
-            return 0
-
-        self.patch.return_value.AVS_GetLambda.side_effect = mock_getLambda
-
-        # successful init() and updateUSBDevices() return the number of devices
-        self.patch.return_value.AVS_Init.return_value = self.n_devices
-        self.patch.return_value.AVS_UpdateUSBDevices.return_value = self.n_devices
-
-        # successful activate() returns the handle of the connected device
-        self.patch.return_value.AVS_Activate.return_value = self.handle
-        # successful disconnect() returns True
-        self.patch.return_value.AVS_Deactivate.return_value = True
-
-        def mock_prepareMeasure(handle, a_pMeasConfig):
-            """Save the MeasureConfig input for checking against later."""
-            self.measure_config_sent = a_pMeasConfig
-            return 0
-
-        self.patch.return_value.AVS_PrepareMeasure.side_effect = mock_prepareMeasure
-
-        # Measure doesn't have any obvious effects itself.
-        self.patch.return_value.AVS_Measure.return_value = 0
-
-        # Require four polls of the device before a measurement is ready
-        self.patch.return_value.AVS_PollScan.side_effect = [0, 0, 0, 1]
-
-        self.spectrum = np.arange(0, self.n_pixels) * 2
-
-        def mock_getScopeData(handle, a_pTimeLabel, a_pSpectrum):
-            a_pSpectrum[:] = self.spectrum
-            return 0
-
-        self.patch.return_value.AVS_GetScopeData.side_effect = mock_getScopeData
-
-        # StopMeasure doesn't have any obvious effects itself.
-        self.patch.return_value.AVS_StopMeasure.return_value = 0
-
-    def tearDown(self):
-        # ensure this is cleared before another mock_measure call
-        self.measure_config_sent = None
+        self.patcher = patcher
 
     def test_connect(self):
         """Test connecting to the first device."""
@@ -399,10 +310,10 @@ class TestFiberSpectrograph(asynctest.TestCase):
         self.assertGreater(t1 - t0, duration)
         self.patch.return_value.AVS_PrepareMeasure.assert_called_once()
         # integration time is in ms, duration in seconds
-        self.assertEqual(self.measure_config_sent.IntegrationTime, duration * 1000)
-        self.assertEqual(self.measure_config_sent.StartPixel, 0)
-        self.assertEqual(self.measure_config_sent.StopPixel, self.n_pixels - 1)
-        self.assertEqual(self.measure_config_sent.NrAverages, 1)
+        self.assertEqual(self.patcher.measure_config_sent.IntegrationTime, duration * 1000)
+        self.assertEqual(self.patcher.measure_config_sent.StartPixel, 0)
+        self.assertEqual(self.patcher.measure_config_sent.StopPixel, self.n_pixels - 1)
+        self.assertEqual(self.patcher.measure_config_sent.NrAverages, 1)
         self.patch.return_value.AVS_Measure.assert_called_once_with(self.handle, 0, 1)
         self.assertEqual(self.patch.return_value.AVS_PollScan.call_count, 4)
         np.testing.assert_array_equal(result[0], self.wavelength)
