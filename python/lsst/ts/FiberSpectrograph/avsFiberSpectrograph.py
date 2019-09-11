@@ -21,12 +21,14 @@
 
 __all__ = ["AvsFiberSpectrograph", "AvsIdentity", "DeviceConfig", "AvsReturnCode", "AvsReturnError"]
 
-import numpy as np
+import asyncio
 import ctypes
 import dataclasses
 import enum
 import logging
 import struct
+
+import numpy as np
 
 # Fully-qualified path to the vendor-provided libavs AvaSpec library.
 # If installed via the vendor packages, it will be in `/usr/local/lib`.
@@ -126,10 +128,17 @@ class AvsFiberSpectrograph:
     def __init__(self, serial_number=None, log=None, log_to_stdout=False):
         if log is None:
             self.log = logging.getLogger('FiberSpectrograph')
+        else:
+            self.log = log
+
         if log_to_stdout:
             self.log.setLevel(logging.DEBUG)
             import sys
             logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
+
+        # create a "done" future
+        self._expose_task = asyncio.Future()
+        self._expose_task.set_result(None)
 
         self.libavs = ctypes.CDLL(LIBRARY_PATH)
 
@@ -155,9 +164,10 @@ class AvsFiberSpectrograph:
         LookupError
             Raised if there is no device with the specified serial number.
         RuntimeError
-            * Raised if multiple devices are connected and no serial number
+            Raised if multiple devices are connected and no serial number
             was specified.
-            * Raised if there is an error connecting to the requested device.
+        AvsReturnError
+            Raised if there is an error connecting to the requested device.
         """
         n_devices = self.libavs.AVS_UpdateUSBDevices()
         if n_devices == 0:
@@ -192,17 +202,37 @@ class AvsFiberSpectrograph:
         self.log.info("Activated connection (handle=%s) with USB device %s.", self.handle, device)
         self.device = device
 
+        # store the number of pixels for use when taking exposures.
+        n_pixels = _getUShortPointer()
+        code = self.libavs.AVS_GetNumPixels(self.handle, n_pixels)
+        assert_avs_code(code, "GetNumPixels")
+        self._n_pixels = n_pixels.contents.value
+
     def disconnect(self):
         """Close the connection with the connected USB spectrograph.
-        If the attempt to disconnect fails, log an error messages.
+
+        If the attempt to disconnect fails, log an error message but still
+        try to release the AVS library port.
+
+        Note
+        ----
+        This method should not raise.
         """
-        if self.handle is not None and self.handle != AvsReturnCode.invalidHandle:
-            result = self.libavs.AVS_Deactivate(self.handle)
-            if not result:
-                self.log.error("Could not deactivate device %s with handle %s. Assuming it is safe to "
-                               "close the communication port anyway.", self.device, self.handle)
-            self.handle = None
-        self.libavs.AVS_Done()
+        try:
+            if self.handle is not None and self.handle != AvsReturnCode.invalidHandle:
+                try:
+                    self.stop_exposure()  # stop any active exposure
+                except Exception as e:
+                    self.log.error("Error stopping exposure during disconnect. %s: %s", type(e).__name__, e)
+                result = self.libavs.AVS_Deactivate(self.handle)
+                if not result:
+                    self.log.error("Could not deactivate device %s with handle %s. Assuming it is safe to "
+                                   "close the communication port anyway.", self.device, self.handle)
+                self.handle = None
+        except Exception as e:
+            self.log.error("Error deactivating device. %s: %s", type(e).__name__, e)
+        finally:
+            self.libavs.AVS_Done()
 
     def get_status(self, full=False):
         """Get the status of the currently connected spectrograph.
@@ -220,6 +250,11 @@ class AvsFiberSpectrograph:
         status : `DeviceStatus`
             The current status of the spectrograph, including temperature,
             exposure status, etc.
+
+        Raises
+        ------
+        AvsReturnError
+            Raised if there is an error querying the device.
         """
         fpga_version = (ctypes.c_ubyte * 16)()
         firmware_version = (ctypes.c_ubyte * 16)()
@@ -243,7 +278,7 @@ class AvsFiberSpectrograph:
             """Return a byte string decoded to ASCII with NULLs stripped."""
             return bytes(value).decode('ascii').split('\x00', 1)[0]
 
-        status = DeviceStatus(n_pixels=config.Detector_m_NrPixels,
+        status = DeviceStatus(n_pixels=self._n_pixels,
                               fpga_version=decode(fpga_version),
                               firmware_version=decode(firmware_version),
                               library_version=decode(library_version),
@@ -255,17 +290,112 @@ class AvsFiberSpectrograph:
     async def expose(self, duration):
         """Take an exposure with the currently connected spectrograph.
 
+        Parameters
+        ----------
+        duration : `float`
+            Integration time of the exposure in seconds.
+
         Returns
         -------
+        wavelength : `np.ndarray`
+            The 1-d wavelength solution provided by the instrument.
         spectrum : `numpy.ndarray`
             The 1-d spectrum measured by the instrument.
-        """
-        pass
 
-    async def stop_exposure(self):
-        """Cancel a currently running exposure and reset the spectrograph.
+        Raises
+        ------
+        RuntimeError
+            Raised if there is an active exposure currently ongoing.
+        AvsReturnError
+            Raised if there is an error in preparation, measurement, or
+            readout from the device.
+        asyncio.CancelledError
+            Raised if the exposure is stopped before it is read out.
         """
-        pass
+        if not self._expose_task.done():
+            raise RuntimeError("Cannot start new exposure until current exposure finishes.")
+        self._expose_task = asyncio.create_task(self._do_expose(duration))
+        await self._expose_task
+        return self._expose_task.result()
+
+    async def _do_expose(self, duration):
+        """Internal method to set up an async task to manage taking an
+        exposure.
+
+        Parameters
+        ----------
+        duration : `float`
+            Integration time of the exposure in seconds.
+
+        Returns
+        -------
+        wavelength : `np.ndarray`
+            The 1-d wavelength solution provided by the instrument.
+        spectrum : `numpy.ndarray`
+            The 1-d spectrum measured by the instrument.
+
+        Raises
+        ------
+        AvsReturnError
+            Raised if there is an error in preparation, measurement, or
+            readout from the device.
+        asyncio.CancelledError
+            Raised if the exposure is stopped before it is read out.
+        """
+        config = MeasureConfig()
+        config.IntegrationTime = duration * 1000  # seconds->milliseconds
+        config.StartPixel = 0
+        config.StopPixel = self._n_pixels - 1
+        config.NrAverages = 1
+        self.log.debug("Preparing %ss measurement.", duration)
+        code = self.libavs.AVS_PrepareMeasure(self.handle, config)
+        assert_avs_code(code, "PrepareMeasure")
+
+        self.log.info("Beginning %ss measurement.", duration)
+        code = self.libavs.AVS_Measure(self.handle, 0, 1)
+        assert_avs_code(code, "Measure")
+
+        # get the wavelength range while we wait for the exposure.
+        wavelength = (ctypes.c_double * self._n_pixels)()
+        code = self.libavs.AVS_GetLambda(self.handle, wavelength)
+        assert_avs_code(code, "GetLambda")
+
+        measure_sleep = asyncio.create_task(asyncio.sleep(duration))
+        await measure_sleep
+
+        data_available = 0
+        while data_available != 1:
+            self.log.debug("Polling for measurement.")
+            data_available = self.libavs.AVS_PollScan(self.handle)
+            assert_avs_code(data_available, "PollScan")
+            # Avantes docs say not to poll too rapidly, or it will overwhelm
+            # the spectrograph CPU. They suggest waiting at least 1 ms.
+            await asyncio.sleep(0.001)
+
+        self.log.debug("Reading measured data from spectrograph.")
+        time_label = _getUIntPointer()  # NOTE: it's not clear from the docs what this is for
+        spectrum = (ctypes.c_double * self._n_pixels)()
+        code = self.libavs.AVS_GetScopeData(self.handle, time_label, spectrum)
+        assert_avs_code(code, "GetScopeData")
+        return np.array(wavelength), np.array(spectrum)
+
+    def stop_exposure(self):
+        """Cancel a currently running exposure and reset the spectrograph.
+
+        If there is no currently active exposure, this does nothing.
+
+        Raises
+        ------
+        AvsReturnError
+            Raised if there is an error stopping the exposure on the device.
+        """
+        if not self._expose_task.done():
+            # only cancel a running exposure
+            self.log.info("Cancelling running exposure...")
+            code = self.libavs.AVS_StopMeasure(self.handle)
+            # cancel the async task before we handle any error codes
+            self._expose_task.cancel()
+            assert_avs_code(code, "StopMeasure")
 
     def __del__(self):
         self.disconnect()
@@ -283,6 +413,8 @@ class AvsFiberSpectrograph:
                                             ctypes.POINTER(ctypes.c_uint),
                                             ctypes.POINTER(AvsIdentity)]
         self.libavs.AVS_Activate.argtypes = [ctypes.POINTER(AvsIdentity)]
+        self.libavs.AVS_GetNumPixels.argtypes = [ctypes.c_long,
+                                                 ctypes.POINTER(ctypes.c_ushort)]
         self.libavs.AVS_GetParameter.argtypes = [ctypes.c_long,
                                                  ctypes.c_uint,
                                                  ctypes.POINTER(ctypes.c_uint),
@@ -294,6 +426,15 @@ class AvsFiberSpectrograph:
         self.libavs.AVS_GetAnalogIn.argtypes = [ctypes.c_long,
                                                 ctypes.c_ubyte,
                                                 ctypes.POINTER(ctypes.c_float)]
+        self.libavs.AVS_PrepareMeasure.argtypes = [ctypes.c_long,
+                                                   ctypes.POINTER(MeasureConfig)]
+        # Measure's second argument is the callback function pointer, but we
+        # aren't using callbacks here, so it will always be NULL==0.
+        self.libavs.AVS_Measure.argtypes = [ctypes.c_long,
+                                            ctypes.c_int,
+                                            ctypes.c_short]
+        self.libavs.AVS_GetLambda.argtypes = [ctypes.c_long,
+                                              ctypes.POINTER(ctypes.c_double)]
 
 
 # size of these character fields in bytes
@@ -355,8 +496,8 @@ class DeviceConfig(ctypes.Structure):
                 ("StandAlone_m_Meas_m_IntegrationTime", ctypes.c_float),
                 ("StandAlone_m_Meas_m_IntegrationDelay", ctypes.c_uint32),
                 ("StandAlone_m_Meas_m_NrAverages", ctypes.c_uint32),
-                ("StandAlone_m_Meas_m_CorDynDark_m_Enable", ctypes.c_uint8),
-                ("StandAlone_m_Meas_m_CorDynDark_m_ForgetPercentage", ctypes.c_uint8),
+                ("StandAlone_m_Meas_m_DynamicDarkCorrection_m_Enable", ctypes.c_uint8),
+                ("StandAlone_m_Meas_m_DynamicDarkCorrection_m_ForgetPercentage", ctypes.c_uint8),
                 ("StandAlone_m_Meas_m_Smoothing_m_SmoothPix", ctypes.c_uint16),
                 ("StandAlone_m_Meas_m_Smoothing_m_SmoothModel", ctypes.c_uint8),
                 ("StandAlone_m_Meas_m_SaturationDetection", ctypes.c_uint8),
@@ -405,6 +546,32 @@ class DeviceConfig(ctypes.Structure):
         attrs = ', '.join(f"{x[0]}={to_str(getattr(self, x[0]))}" for x in self._fields_
                           if x[0] not in too_long)
         return f"DeviceConfigType({attrs})"
+
+
+class MeasureConfig(ctypes.Structure):
+    _pack_ = 1
+    _fields_ = [("StartPixel", ctypes.c_uint16),
+                ("StopPixel", ctypes.c_uint16),
+                ("IntegrationTime", ctypes.c_float),  # milliseconds
+                ("IntegrationDelay", ctypes.c_uint32),  # internal FGPA clock cycle
+                ("NrAverages", ctypes.c_uint32),
+                ("DynamicDarkCorrection_Enable", ctypes.c_uint8),
+                ("DynamicDarkCorrection_ForgetPercentage", ctypes.c_uint8),
+                ("Smoothing_SmoothPix", ctypes.c_uint16),
+                ("Smoothing_SmoothModel", ctypes.c_uint8),
+                ("SaturationDetection", ctypes.c_uint8),
+                ("Trigger_Mode", ctypes.c_uint8),
+                ("Trigger_Source", ctypes.c_uint8),
+                ("Trigger_SourceType", ctypes.c_uint8),
+                ("Control_StrobeControl", ctypes.c_uint16),
+                ("Control_LaserDelay", ctypes.c_uint32),
+                ("Control_LaserWidth", ctypes.c_uint32),
+                ("Control_LaserWaveLength", ctypes.c_float),
+                ("Control_StoreToRam", ctypes.c_uint16)]
+
+    def __repr__(self):
+        attrs = ', '.join(f"{x[0]}={getattr(self, x[0])}" for x in self._fields_)
+        return f"MeasureConfig({attrs})"
 
 
 @enum.unique

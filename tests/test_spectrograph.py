@@ -19,6 +19,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import asyncio
+import asynctest
+import contextlib
+import io
+import itertools
+import logging
+import time
 import unittest
 import unittest.mock
 
@@ -30,7 +37,7 @@ from lsst.ts.FiberSpectrograph import AvsIdentity
 from lsst.ts.FiberSpectrograph import DeviceConfig
 
 
-class TestFiberSpectrograph(unittest.TestCase):
+class TestFiberSpectrograph(asynctest.TestCase):
     """Tests of the python API for the Avantes AvaSpec-ULS-RS-TEC.
     """
     def setUp(self):
@@ -94,6 +101,19 @@ class TestFiberSpectrograph(unittest.TestCase):
 
         self.patch.return_value.AVS_GetAnalogIn.side_effect = mock_getAnalogIn
 
+        def mock_getNumPixels(handle, a_pNumPixels):
+            a_pNumPixels.contents.value = self.n_pixels
+            return 0
+
+        self.wavelength = np.arange(0, self.n_pixels)
+        self.patch.return_value.AVS_GetNumPixels.side_effect = mock_getNumPixels
+
+        def mock_getLambda(handle, a_pWavelength):
+            a_pWavelength[:] = self.wavelength
+            return 0
+
+        self.patch.return_value.AVS_GetLambda.side_effect = mock_getLambda
+
         # successful init() and updateUSBDevices() return the number of devices
         self.patch.return_value.AVS_Init.return_value = self.n_devices
         self.patch.return_value.AVS_UpdateUSBDevices.return_value = self.n_devices
@@ -103,13 +123,60 @@ class TestFiberSpectrograph(unittest.TestCase):
         # successful disconnect() returns True
         self.patch.return_value.AVS_Deactivate.return_value = True
 
+        def mock_prepareMeasure(handle, a_pMeasConfig):
+            """Save the MeasureConfig input for checking against later."""
+            self.measure_config_sent = a_pMeasConfig
+            return 0
+
+        self.patch.return_value.AVS_PrepareMeasure.side_effect = mock_prepareMeasure
+
+        # Measure doesn't have any obvious effects itself.
+        self.patch.return_value.AVS_Measure.return_value = 0
+
+        # Require four polls of the device before a measurement is ready
+        self.patch.return_value.AVS_PollScan.side_effect = [0, 0, 0, 1]
+
+        self.spectrum = np.arange(0, self.n_pixels) * 2
+
+        def mock_getScopeData(handle, a_pTimeLabel, a_pSpectrum):
+            a_pSpectrum[:] = self.spectrum
+            return 0
+
+        self.patch.return_value.AVS_GetScopeData.side_effect = mock_getScopeData
+
+        # StopMeasure doesn't have any obvious effects itself.
+        self.patch.return_value.AVS_StopMeasure.return_value = 0
+
+    def tearDown(self):
+        # ensure this is cleared before another mock_measure call
+        self.measure_config_sent = None
+
     def test_connect(self):
         """Test connecting to the first device."""
-        fiber_spec = AvsFiberSpectrograph()
+        spec = AvsFiberSpectrograph()
         self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
         self.patch.return_value.AVS_GetList.assert_called_once()
-        self.patch.return_value.AVS_Activate.assert_called_with(self.id0)
-        self.assertEqual(fiber_spec.device, self.id0)
+        self.patch.return_value.AVS_Activate.assert_called_once_with(self.id0)
+        self.patch.return_value.AVS_GetNumPixels.assert_called_once()
+        self.assertEqual(spec.device, self.id0)
+
+    def test_create_with_logger(self):
+        """Test that a passed-in logger is used for log messages."""
+        log = logging.Logger("testingLogger")
+        with self.assertLogs(log, logging.DEBUG):
+            spec = AvsFiberSpectrograph(log=log)
+        # simple check that the instance was created successfully
+        self.assertEqual(spec.device, self.id0)
+
+    def test_create_with_stdout_log(self):
+        """Test that the ``log_to_stdout`` init option works."""
+        capture = io.StringIO()
+        with contextlib.redirect_stdout(capture):
+            spec = AvsFiberSpectrograph(log_to_stdout=True)
+        self.assertIn("Found 1 attached USB Avantes device", capture.getvalue())
+        self.assertIn("Activated connection", capture.getvalue())
+        # simple check that the instance was created successfully
+        self.assertEqual(spec.device, self.id0)
 
     def test_connect_serial_number(self):
         """Test connecting to a device with a specific serial number."""
@@ -125,11 +192,11 @@ class TestFiberSpectrograph(unittest.TestCase):
         self.patch.return_value.AVS_GetList.side_effect = mock_getList
         self.patch.return_value.AVS_UpdateUSBDevices.return_value = self.n_devices
 
-        fiber_spec = AvsFiberSpectrograph(serial_number=serial_number)
+        spec = AvsFiberSpectrograph(serial_number=serial_number)
         self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
         self.patch.return_value.AVS_GetList.assert_called_once()
         self.patch.return_value.AVS_Activate.assert_called_with(id1)
-        self.assertEqual(fiber_spec.device, id1)
+        self.assertEqual(spec.device, id1)
 
     def test_connect_no_serial_number_two_devices_fails(self):
         serial_number = "54321"
@@ -209,7 +276,7 @@ class TestFiberSpectrograph(unittest.TestCase):
         self.patch.return_value.AVS_Activate.assert_not_called()
 
     def test_connect_Activate_fails(self):
-        """Test that connect raises if no devices were found."""
+        """Test that connect raises if the Activate command fails."""
         self.patch.return_value.AVS_Activate.return_value = AvsReturnCode.ERR_DLL_INITIALISATION.value
 
         with self.assertRaisesRegex(AvsReturnError, "Activate"):
@@ -218,46 +285,69 @@ class TestFiberSpectrograph(unittest.TestCase):
         self.patch.return_value.AVS_GetList.assert_called_once()
         self.patch.return_value.AVS_Activate.assert_called_once()
 
+    def test_connect_GetNumPixels_fails(self):
+        """Test that connect ."""
+        self.patch.return_value.AVS_GetNumPixels.side_effect = None
+        self.patch.return_value.AVS_GetNumPixels.return_value = AvsReturnCode.ERR_DEVICE_NOT_FOUND.value
+
+        with self.assertRaisesRegex(AvsReturnError, "GetNumPixels"):
+            AvsFiberSpectrograph()
+        self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
+        self.patch.return_value.AVS_GetList.assert_called_once()
+        self.patch.return_value.AVS_Activate.assert_called_once()
+        self.patch.return_value.AVS_GetNumPixels.assert_called_once()
+
     def test_disconnect(self):
         """Test a successful USB disconnect command."""
-        fiber_spec = AvsFiberSpectrograph()
-        fiber_spec.disconnect()
+        spec = AvsFiberSpectrograph()
+        spec.disconnect()
         self.patch.return_value.AVS_Deactivate.assert_called_once_with(self.handle)
         self.patch.return_value.AVS_Done.assert_called_once_with()
-        self.assertIsNone(fiber_spec.handle)
+        self.assertIsNone(spec.handle)
 
     def test_disconnect_no_handle(self):
         """Test that we do not attempt to disconnect if there is no device
         handle.
         """
-        fiber_spec = AvsFiberSpectrograph()
-        fiber_spec.handle = None
-        fiber_spec.disconnect()
+        spec = AvsFiberSpectrograph()
+        spec.handle = None
+        spec.disconnect()
         self.patch.return_value.AVS_Deactivate.assert_not_called()
         self.patch.return_value.AVS_Done.assert_called_once_with()
 
     def test_disconnect_bad_handle(self):
         """Do not attempt to disconnect if the device handle is bad.
         """
-        fiber_spec = AvsFiberSpectrograph()
-        fiber_spec.handle = AvsReturnCode.invalidHandle.value
-        fiber_spec.disconnect()
+        spec = AvsFiberSpectrograph()
+        spec.handle = AvsReturnCode.invalidHandle.value
+        spec.disconnect()
         self.patch.return_value.AVS_Deactivate.assert_not_called()
         self.patch.return_value.AVS_Done.assert_called_once_with()
 
     def test_disconnect_fails_logged(self):
         """Test that a "failed" Deactivate emits an error."""
         self.patch.return_value.AVS_Deactivate.return_value = False
-        fiber_spec = AvsFiberSpectrograph()
-        with self.assertLogs(fiber_spec.log, "ERROR"):
-            fiber_spec.disconnect()
+        spec = AvsFiberSpectrograph()
+        with self.assertLogs(spec.log, "ERROR"):
+            spec.disconnect()
         self.patch.return_value.AVS_Deactivate.assert_called_once_with(self.handle)
         self.patch.return_value.AVS_Done.assert_called_once_with()
 
     def test_disconnect_on_delete(self):
         """Test that the connection is closed if the object is deleted."""
-        fiber_spec = AvsFiberSpectrograph()
-        del fiber_spec
+        spec = AvsFiberSpectrograph()
+        del spec
+        self.patch.return_value.AVS_Deactivate.assert_called_once_with(self.handle)
+        self.patch.return_value.AVS_Done.assert_called_once_with()
+
+    def test_disconnect_other_exception(self):
+        """Test that disconnect continues if there some other exception raised
+        during disconnect.
+        """
+        self.patch.return_value.AVS_Deactivate.side_effect = RuntimeError
+        spec = AvsFiberSpectrograph()
+        with self.assertLogs(spec.log, "ERROR"):
+            spec.disconnect()
         self.patch.return_value.AVS_Deactivate.assert_called_once_with(self.handle)
         self.patch.return_value.AVS_Done.assert_called_once_with()
 
@@ -297,6 +387,208 @@ class TestFiberSpectrograph(unittest.TestCase):
         self.patch.return_value.AVS_GetAnalogIn.return_value = AvsReturnCode.ERR_TIMEOUT.value
         with self.assertRaisesRegex(AvsReturnError, "GetAnalogIn.*ERR_TIMEOUT"):
             spec.get_status()
+
+    async def test_expose(self):
+        duration = 0.5  # seconds
+        spec = AvsFiberSpectrograph()
+
+        t0 = time.perf_counter()
+        result = await spec.expose(duration)
+        t1 = time.perf_counter()
+
+        self.assertGreater(t1 - t0, duration)
+        self.patch.return_value.AVS_PrepareMeasure.assert_called_once()
+        # integration time is in ms, duration in seconds
+        self.assertEqual(self.measure_config_sent.IntegrationTime, duration * 1000)
+        self.assertEqual(self.measure_config_sent.StartPixel, 0)
+        self.assertEqual(self.measure_config_sent.StopPixel, self.n_pixels - 1)
+        self.assertEqual(self.measure_config_sent.NrAverages, 1)
+        self.patch.return_value.AVS_Measure.assert_called_once_with(self.handle, 0, 1)
+        self.assertEqual(self.patch.return_value.AVS_PollScan.call_count, 4)
+        np.testing.assert_array_equal(result[0], self.wavelength)
+        np.testing.assert_array_equal(result[1], self.spectrum)
+
+    async def test_expose_raises_if_active_exposure(self):
+        """Starting a new exposure while one is currently active should raise
+        """
+        duration = 0.2  # seconds
+        spec = AvsFiberSpectrograph()
+
+        task = asyncio.create_task(spec.expose(duration))
+        await asyncio.sleep(0.1)  # give the event loop time to start
+        with self.assertRaises(RuntimeError):
+            task2 = asyncio.create_task(spec.expose(duration))
+            await task2
+        await task
+        # in addition to raising, should have only called these functions once
+        self.patch.return_value.AVS_PrepareMeasure.assert_called_once()
+        self.patch.return_value.AVS_Measure.assert_called_once_with(self.handle, 0, 1)
+        self.patch.return_value.AVS_GetScopeData.assert_called_once()
+
+    async def test_expose_prepare_fails(self):
+        duration = 0.5  # seconds
+        self.patch.return_value.AVS_PrepareMeasure.side_effect = None
+        self.patch.return_value.AVS_PrepareMeasure.return_value = AvsReturnCode.ERR_INVALID_PARAMETER.value
+
+        spec = AvsFiberSpectrograph()
+        with self.assertRaisesRegex(AvsReturnError, "PrepareMeasure"):
+            await spec.expose(duration)
+        self.patch.return_value.AVS_PrepareMeasure.assert_called_once()
+        self.patch.return_value.AVS_Measure.assert_not_called()
+
+    async def test_expose_measure_fails(self):
+        duration = 0.5  # seconds
+        self.patch.return_value.AVS_Measure.side_effect = None
+        self.patch.return_value.AVS_Measure.return_value = AvsReturnCode.ERR_INVALID_STATE.value
+
+        spec = AvsFiberSpectrograph()
+        with self.assertRaisesRegex(AvsReturnError, "Measure"):
+            await spec.expose(duration)
+        self.patch.return_value.AVS_PrepareMeasure.assert_called_once()
+        self.patch.return_value.AVS_Measure.assert_called_once_with(self.handle, 0, 1)
+
+    async def test_expose_GetLambda_fails(self):
+        duration = 0.5  # seconds
+        self.patch.return_value.AVS_GetLambda.side_effect = None
+        self.patch.return_value.AVS_GetLambda.return_value = AvsReturnCode.ERR_INVALID_DEVICE_ID.value
+
+        spec = AvsFiberSpectrograph()
+        with self.assertRaisesRegex(AvsReturnError, "GetLambda"):
+            await spec.expose(duration)
+        self.patch.return_value.AVS_PrepareMeasure.assert_called_once()
+        self.patch.return_value.AVS_Measure.assert_called_once_with(self.handle, 0, 1)
+        self.patch.return_value.AVS_PollScan.assert_not_called()
+
+    async def test_expose_PollScan_fails(self):
+        duration = 0.5  # seconds
+        self.patch.return_value.AVS_PollScan.side_effect = None
+        self.patch.return_value.AVS_PollScan.return_value = AvsReturnCode.ERR_INVALID_DEVICE_ID.value
+
+        spec = AvsFiberSpectrograph()
+        with self.assertRaisesRegex(AvsReturnError, "PollScan"):
+            await spec.expose(duration)
+        self.patch.return_value.AVS_PrepareMeasure.assert_called_once()
+        self.patch.return_value.AVS_Measure.assert_called_once_with(self.handle, 0, 1)
+        self.patch.return_value.AVS_PollScan.assert_called_once_with(self.handle)
+
+    async def test_expose_GetScopeData_fails(self):
+        duration = 0.5  # seconds
+        self.patch.return_value.AVS_GetScopeData.side_effect = None
+        self.patch.return_value.AVS_GetScopeData.return_value = AvsReturnCode.ERR_INVALID_MEAS_DATA.value
+
+        spec = AvsFiberSpectrograph()
+        with self.assertRaisesRegex(AvsReturnError, "GetScopeData"):
+            await spec.expose(duration)
+        self.patch.return_value.AVS_PrepareMeasure.assert_called_once()
+        self.patch.return_value.AVS_Measure.assert_called_once_with(self.handle, 0, 1)
+        self.assertEqual(self.patch.return_value.AVS_PollScan.call_count, 4)
+
+    async def test_stop_exposure(self):
+        """Test that `stop_exposure` ends the active `expose`."""
+        duration = 5  # seconds
+        spec = AvsFiberSpectrograph()
+
+        t0 = time.perf_counter()
+        task = asyncio.create_task(spec.expose(duration))
+        await asyncio.sleep(0.1)  # give the event loop time to start
+        spec.stop_exposure()
+        with self.assertRaises(asyncio.CancelledError):
+            await task
+        t1 = time.perf_counter()
+
+        self.assertLess(t1 - t0, 1)  # cancelling the task should make it end much sooner than the duration
+        self.patch.return_value.AVS_StopMeasure.assert_called_with(self.handle)
+
+    async def test_stop_exposure_during_poll_loop(self):
+        """Test that `stop_exposure` ends the active `expose` when called
+        during the `PollData` loop.
+        """
+        duration = 0.2  # seconds
+        # repeat "no data" forever, so that `stop` will trigger during polling
+        self.patch.return_value.AVS_PollScan.side_effect = itertools.repeat(0)
+        spec = AvsFiberSpectrograph()
+
+        task = asyncio.create_task(spec.expose(duration))
+        await asyncio.sleep(duration + 0.1)  # wait until we are in the poll loop
+        spec.stop_exposure()
+        with self.assertRaises(asyncio.CancelledError):
+            await task
+
+        self.patch.return_value.AVS_StopMeasure.assert_called_with(self.handle)
+        self.patch.return_value.AVS_PollScan.assert_called_with(self.handle)
+        self.patch.return_value.AVS_GetScopeData.assert_not_called()
+
+    async def test_stop_exposure_no_expose_running(self):
+        """Test that stop_exposure does nothing if there is no active
+        `expose` command.
+        """
+        spec = AvsFiberSpectrograph()
+        spec.stop_exposure()
+        self.patch.return_value.AVS_StopMeasure.assert_not_called()
+
+    async def test_stop_exposure_fails(self):
+        """Test `AVS_StopMeasure` returning an error: the existing exposure
+        task should be cancelled, but `stop_exposure` should also raise."""
+        duration = 5  # seconds
+        self.patch.return_value.AVS_StopMeasure.return_value = AvsReturnCode.ERR_TIMEOUT.value
+        spec = AvsFiberSpectrograph()
+
+        t0 = time.perf_counter()
+        task = asyncio.create_task(spec.expose(duration))
+        await asyncio.sleep(0.1)  # give the event loop time to start
+        with self.assertRaisesRegex(AvsReturnError, "StopMeasure"):
+            spec.stop_exposure()
+        with self.assertRaises(asyncio.CancelledError):
+            await task
+        t1 = time.perf_counter()
+
+        self.assertLess(t1 - t0, 1)  # cancelling the task should make it end much sooner than the duration
+        self.patch.return_value.AVS_StopMeasure.assert_called_with(self.handle)
+
+    async def test_disconnect_active_exposure(self):
+        """Test that disconnecting cancels an active exposure."""
+        duration = 5  # seconds
+        spec = AvsFiberSpectrograph()
+
+        t0 = time.perf_counter()
+        task = asyncio.create_task(spec.expose(duration))
+        await asyncio.sleep(0.1)  # give the event loop time to start
+        spec.disconnect()
+        with self.assertRaises(asyncio.CancelledError):
+            await task
+        t1 = time.perf_counter()
+
+        self.assertLess(t1 - t0, 1)  # cancelling the task should make it end much sooner than the duration
+        self.patch.return_value.AVS_StopMeasure.assert_called_with(self.handle)
+        self.patch.return_value.AVS_Deactivate.assert_called_once_with(self.handle)
+        self.patch.return_value.AVS_Done.assert_called_once_with()
+        self.assertIsNone(spec.handle)
+
+    async def test_disconnect_stop_exposure_exception(self):
+        """Test that `disconnect` does not raise if `stop_exposure` raises, but
+        does log an error message, and continues with deactivating the device.
+        """
+        duration = 5  # seconds
+        spec = AvsFiberSpectrograph()
+        self.patch.return_value.AVS_StopMeasure.return_value = AvsReturnCode.ERR_INVALID_PARAMETER.value
+
+        t0 = time.perf_counter()
+        task = asyncio.create_task(spec.expose(duration))
+        await asyncio.sleep(0.1)  # give the event loop time to start
+        try:
+            with self.assertLogs(spec.log, "ERROR"):
+                spec.disconnect()
+        except AvsReturnError:
+            self.fail("disconnect() should not raise an exception, even if `stop_exposure` does.")
+        with self.assertRaises(asyncio.CancelledError):
+            await task
+        t1 = time.perf_counter()
+
+        self.assertLess(t1 - t0, 1)  # cancelling the task should make it end much sooner than the duration
+        self.patch.return_value.AVS_StopMeasure.assert_called_with(self.handle)
+        self.patch.return_value.AVS_Deactivate.assert_called_once_with(self.handle)
+        self.patch.return_value.AVS_Done.assert_called_once_with()
+        self.assertIsNone(spec.handle)
 
 
 class TestAvsReturnError(unittest.TestCase):
