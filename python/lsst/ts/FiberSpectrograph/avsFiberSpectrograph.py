@@ -390,6 +390,7 @@ class AvsFiberSpectrograph:
             # only cancel a running exposure
             self.log.info("Cancelling running exposure...")
             code = self.libavs.AVS_StopMeasure(self.handle)
+            # cancel the async task before we handle any error codes
             self._expose_task.cancel()
             assert_avs_code(code, "StopMeasure")
 
