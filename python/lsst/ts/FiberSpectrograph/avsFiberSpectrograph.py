@@ -19,7 +19,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = ["AvsFiberSpectrograph", "AvsIdentity", "DeviceConfig", "AvsReturnCode", "AvsReturnError"]
+__all__ = ["AvsFiberSpectrograph", "AvsDeviceStatus", "AvsIdentity",
+           "DeviceConfig", "AvsReturnCode", "AvsReturnError"]
 
 import asyncio
 import ctypes
@@ -247,7 +248,7 @@ class AvsFiberSpectrograph:
 
         Returns
         -------
-        status : `DeviceStatus`
+        status : `SpectrographStatus`
             The current status of the spectrograph, including temperature,
             exposure status, etc.
 
@@ -278,13 +279,13 @@ class AvsFiberSpectrograph:
             """Return a byte string decoded to ASCII with NULLs stripped."""
             return bytes(value).decode('ascii').split('\x00', 1)[0]
 
-        status = DeviceStatus(n_pixels=self._n_pixels,
-                              fpga_version=decode(fpga_version),
-                              firmware_version=decode(firmware_version),
-                              library_version=decode(library_version),
-                              temperature_setpoint=config.TecControl_m_Setpoint,
-                              temperature=temperature,
-                              config=config if full else None)
+        status = SpectrographStatus(n_pixels=self._n_pixels,
+                                    fpga_version=decode(fpga_version),
+                                    firmware_version=decode(firmware_version),
+                                    library_version=decode(library_version),
+                                    temperature_setpoint=config.TecControl_m_Setpoint,
+                                    temperature=temperature,
+                                    config=config if full else None)
         return status
 
     async def expose(self, duration):
@@ -442,6 +443,18 @@ AVS_USER_ID_LEN = 64
 AVS_SERIAL_LEN = 10
 
 
+class AvsDeviceStatus(enum.IntEnum):
+    """Avantes DeviceStatus from page 38 of the Linux Library Manual.
+
+    Values are returned in the AvsIdentity ``Status`` field as a ``char``.
+    Values >3 only apply to ethernet spectrographs, not USB ones.
+    """
+    UNKNOWN = 0
+    USB_AVAILABLE = 1
+    USB_IN_USE_BY_APPLICATION = 2
+    USB_IN_USE_BY_OTHER = 3
+
+
 class AvsIdentity(ctypes.Structure):
     """Python structure to represent the `AvsIdentityType` C struct."""
     _pack_ = 1
@@ -452,8 +465,8 @@ class AvsIdentity(ctypes.Structure):
     def __repr__(self):
         serial = self.SerialNumber.decode('ascii')
         name = self.UserFriendlyName.decode('ascii')
-        status = struct.unpack('B', self.Status)[0]
-        return f'AvaIdentity("{serial}", "{name}", {status})'
+        status = AvsDeviceStatus(struct.unpack('B', self.Status)[0])
+        return f'AvaIdentity("{serial}", "{name}", {repr(status)})'
 
     def __eq__(self, other):
         return (self.SerialNumber == other.SerialNumber and
@@ -631,7 +644,7 @@ class AvsReturnCode(enum.IntEnum):
 
 
 @dataclasses.dataclass
-class DeviceStatus:
+class SpectrographStatus:
     """The current status of the connected spectrograph."""
     n_pixels: int
     """The number of pixels in the instrument."""

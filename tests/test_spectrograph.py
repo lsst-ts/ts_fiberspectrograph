@@ -34,7 +34,7 @@ import numpy as np
 from lsst.ts.FiberSpectrograph import AvsSimulator
 from lsst.ts.FiberSpectrograph import AvsFiberSpectrograph
 from lsst.ts.FiberSpectrograph import AvsReturnCode, AvsReturnError
-from lsst.ts.FiberSpectrograph import AvsIdentity
+from lsst.ts.FiberSpectrograph import AvsDeviceStatus, AvsIdentity
 from lsst.ts.FiberSpectrograph import DeviceConfig
 
 
@@ -93,7 +93,9 @@ class TestFiberSpectrograph(asynctest.TestCase):
         """Test connecting to a device with a specific serial number."""
         serial_number = "54321"
         self.n_devices = 2
-        id1 = AvsIdentity(bytes(str(serial_number), "ascii"), b"Fake Spectrograph 2", 1)
+        id1 = AvsIdentity(bytes(str(serial_number), "ascii"),
+                          b"Fake Spectrograph 2",
+                          AvsDeviceStatus.USB_AVAILABLE.value)
 
         def mock_getList(a_listSize, a_pRequiredSize, a_pList):
             """Pretend that two devices are connected."""
@@ -112,7 +114,9 @@ class TestFiberSpectrograph(asynctest.TestCase):
     def test_connect_no_serial_number_two_devices_fails(self):
         serial_number = "54321"
         self.n_devices = 2
-        id1 = AvsIdentity(bytes(str(serial_number), "ascii"), b"Fake Spectrograph 2", 1)
+        id1 = AvsIdentity(bytes(str(serial_number), "ascii"),
+                          b"Fake Spectrograph 2",
+                          AvsDeviceStatus.USB_AVAILABLE.value)
 
         def mock_getList(a_listSize, a_pRequiredSize, a_pList):
             """Pretend that two devices are connected."""

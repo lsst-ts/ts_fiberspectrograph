@@ -29,7 +29,7 @@ import unittest.mock
 
 import numpy as np
 
-from lsst.ts.FiberSpectrograph import AvsIdentity
+from lsst.ts.FiberSpectrograph import AvsIdentity, AvsDeviceStatus
 
 
 class AvsSimulator:
@@ -49,9 +49,7 @@ class AvsSimulator:
         self.handle = 314159
 
         name = b"Fake Spectrograph"
-        # DeviceStatus (char): 0=unknown, 1=available, 2=in use by this,
-        # 3=in use by other, >3 = irrelevant to USB
-        status = 0x01
+        status = AvsDeviceStatus.USB_AVAILABLE.value
         self.id0 = AvsIdentity(bytes(str(self.serial_number), "ascii"), name, status)
 
         def mock_getList(a_listSize, a_pRequiredSize, a_pList):
