@@ -38,8 +38,8 @@ from lsst.ts.FiberSpectrograph import AvsDeviceStatus, AvsIdentity
 from lsst.ts.FiberSpectrograph import DeviceConfig
 
 
-class TestFiberSpectrograph(asynctest.TestCase):
-    """Tests of the python API for the Avantes AvaSpec-ULS-RS-TEC.
+class TestAvsFiberSpectrograph(asynctest.TestCase):
+    """Tests of the python API for the Avantes AvaSpec-ULS spectrograph.
     """
     def setUp(self):
         """This setUp configures the mock for a "no error conditions" use case,
