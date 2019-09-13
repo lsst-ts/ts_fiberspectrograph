@@ -20,7 +20,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import asyncio
-import asynctest
 import contextlib
 import io
 import itertools
@@ -29,6 +28,7 @@ import time
 import unittest
 import unittest.mock
 
+import asynctest
 import numpy as np
 
 from lsst.ts.FiberSpectrograph import AvsSimulator
