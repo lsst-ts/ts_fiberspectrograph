@@ -1,6 +1,6 @@
 # ts_FiberSpectrograph
 
-Python-based interface for the Avantes fiber spectrograph and a Commandable SAL Component to control it.
+Python-based interface for the Avantes fiber spectrograph and a Configurable Commandable SAL Component (CSC) to control it.
 
 Use of this package requires that `libavs.so.0.2.0` be installed in `/usr/local/lib`.
 

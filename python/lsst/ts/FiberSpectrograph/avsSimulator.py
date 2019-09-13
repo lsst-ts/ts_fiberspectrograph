@@ -29,7 +29,7 @@ import unittest.mock
 
 import numpy as np
 
-from lsst.ts.FiberSpectrograph import AvsIdentity, AvsDeviceStatus
+from .avsFiberSpectrograph import AvsIdentity, AvsDeviceStatus
 
 
 class AvsSimulator:
