@@ -41,6 +41,8 @@ class AvsSimulator:
     with all methods behaving as if one device is connected and behaving.
     """
     def __init__(self):
+        self.mock = None
+
         # This will be passed into the patcher to configure the mock.
         config = dict()
 
@@ -148,6 +150,8 @@ class AvsSimulator:
     def start(self, testCase=None):
         """Start the simulator by patching the spectrograph library.
 
+        If the patch has already been started, just return the running mock.
+
         Parameters
         ----------
         testCase : `unittest.TestCase`, optional
@@ -158,11 +162,19 @@ class AvsSimulator:
         mock : `unittest.mock.Mock`
             The newly created libavs mock.
         """
-        mock = self.patcher.start()
+        if self.mock is None:
+            self.mock = self.patcher.start()
+
         if testCase is not None:
             testCase.addCleanup(self.stop)
-        return mock
+
+        return self.mock
 
     def stop(self):
         """Disable the patched mock library."""
-        self.patcher.stop()
+        # We have to check that the patch has been `start`ed, otherwise
+        # `stop()` will raise an exception.
+        # Note, this is fixed in py3.8: https://bugs.python.org/issue36366
+        if self.mock is not None:
+            self.patcher.stop()
+        self.mock = None
