@@ -61,12 +61,15 @@ class AvsSimulator:
             return self.n_devices
         config['return_value.AVS_GetList.side_effect'] = mock_getList
 
-        self.n_pixels = 3141
-        self.temperature_setpoint = -273.0
-        # thermistor voltage is converted to temperature via a polynomial
-        self.tec_coefficients = np.array((12, 34, 56, 78, 90), dtype=np.float32)
-        self.tec_voltage = 6.4
-        self.temperature = sum(x*self.tec_voltage**i for i, x in enumerate(self.tec_coefficients))
+        # Have the number of pixels, and temperature values match the real
+        # device, so that users aren't confused by simulation telemetry.
+        self.n_pixels = 2048
+        self.temperature_setpoint = 5
+        # thermistor voltage is converted to temperature via a polynomial:
+        # these coefficients should result in a temperature of 5.0
+        self.tec_coefficients = np.array((1, 2, 0, 0., 0), dtype=np.float32)
+        self.tec_voltage = 2
+        self.temperature = sum(coeff*self.tec_voltage**i for i, coeff in enumerate(self.tec_coefficients))
 
         def mock_getParameter(handle, a_Size, a_pRequiredSize, config):
             """Assume a_pData has the correct amount of space allocated."""
