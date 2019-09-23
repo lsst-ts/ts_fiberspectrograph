@@ -31,37 +31,6 @@ You can find Jira issues for this module under the `ts_FiberSpectrograph <https:
 .. .. toctree::
 ..    :maxdepth: 1
 
-.. _lsst.ts.FiberSpectrograph-command-line-taskref:
-
-Task reference
-==============
-
-.. _lsst.ts.FiberSpectrograph-command-line-tasks:
-
-Command-line tasks
-------------------
-
-.. lsst-cmdlinetasks::
-   :root: lsst.ts.FiberSpectrograph
-
-.. _lsst.ts.FiberSpectrograph-tasks:
-
-Tasks
------
-
-.. lsst-tasks::
-   :root: lsst.ts.FiberSpectrograph
-   :toctree: tasks
-
-.. _lsst.ts.FiberSpectrograph-configs:
-
-Configurations
---------------
-
-.. lsst-configs::
-   :root: lsst.ts.FiberSpectrograph
-   :toctree: configs
-
 .. _lsst.ts.FiberSpectrograph-pyapi:
 
 Python API reference
