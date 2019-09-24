@@ -20,7 +20,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 __all__ = ["AvsFiberSpectrograph", "AvsDeviceStatus", "AvsIdentity",
-           "DeviceConfig", "AvsReturnCode", "AvsReturnError"]
+           "AvsDeviceConfig", "AvsReturnCode", "AvsReturnError"]
 
 import asyncio
 import ctypes
@@ -241,7 +241,7 @@ class AvsFiberSpectrograph:
         Parameters
         ----------
         full : `bool`
-            Include the full `DeviceConfig` structure in the returned status.
+            Include the full `AvsDeviceConfig` structure in the output.
             This can be useful for understanding what other information is
             available from the spectrograph, but requires having the Avantes
             manual on hand to decode it.
@@ -263,7 +263,7 @@ class AvsFiberSpectrograph:
         code = self.libavs.AVS_GetVersionInfo(self.handle, fpga_version, firmware_version, library_version)
         assert_avs_code(code, "GetVersionInfo")
 
-        config = DeviceConfig()
+        config = AvsDeviceConfig()
         code = self.libavs.AVS_GetParameter(self.handle,
                                             ctypes.sizeof(config),
                                             _getUIntPointer(ctypes.sizeof(config)),
@@ -343,7 +343,7 @@ class AvsFiberSpectrograph:
         asyncio.CancelledError
             Raised if the exposure is stopped before it is read out.
         """
-        config = MeasureConfig()
+        config = AvsMeasureConfig()
         config.IntegrationTime = duration * 1000  # seconds->milliseconds
         config.StartPixel = 0
         config.StopPixel = self._n_pixels - 1
@@ -419,7 +419,7 @@ class AvsFiberSpectrograph:
         self.libavs.AVS_GetParameter.argtypes = [ctypes.c_long,
                                                  ctypes.c_uint,
                                                  ctypes.POINTER(ctypes.c_uint),
-                                                 ctypes.POINTER(DeviceConfig)]
+                                                 ctypes.POINTER(AvsDeviceConfig)]
         self.libavs.AVS_GetVersionInfo.argtypes = [ctypes.c_long,
                                                    ctypes.POINTER(ctypes.c_ubyte),
                                                    ctypes.POINTER(ctypes.c_ubyte),
@@ -428,7 +428,7 @@ class AvsFiberSpectrograph:
                                                 ctypes.c_ubyte,
                                                 ctypes.POINTER(ctypes.c_float)]
         self.libavs.AVS_PrepareMeasure.argtypes = [ctypes.c_long,
-                                                   ctypes.POINTER(MeasureConfig)]
+                                                   ctypes.POINTER(AvsMeasureConfig)]
         # Measure's second argument is the callback function pointer, but we
         # aren't using callbacks here, so it will always be NULL==0.
         self.libavs.AVS_Measure.argtypes = [ctypes.c_long,
@@ -474,7 +474,7 @@ class AvsIdentity(ctypes.Structure):
                 self.Status == other.Status)
 
 
-class DeviceConfig(ctypes.Structure):
+class AvsDeviceConfig(ctypes.Structure):
     """Python structure to represent the `DeviceConfigType` C struct."""
     _pack_ = 1
     _fields_ = [("Len", ctypes.c_uint16),
@@ -561,7 +561,7 @@ class DeviceConfig(ctypes.Structure):
         return f"DeviceConfigType({attrs})"
 
 
-class MeasureConfig(ctypes.Structure):
+class AvsMeasureConfig(ctypes.Structure):
     _pack_ = 1
     _fields_ = [("StartPixel", ctypes.c_uint16),
                 ("StopPixel", ctypes.c_uint16),
@@ -584,7 +584,7 @@ class MeasureConfig(ctypes.Structure):
 
     def __repr__(self):
         attrs = ', '.join(f"{x[0]}={getattr(self, x[0])}" for x in self._fields_)
-        return f"MeasureConfig({attrs})"
+        return f"AvsMeasureConfig({attrs})"
 
 
 @enum.unique
@@ -658,8 +658,8 @@ class SpectrographStatus:
     """The detector temperature set point (degrees Celsius)."""
     temperature: float
     """The temperature at the optical bench thermistor (degrees Celsius)."""
-    config: DeviceConfig = None
-    """The full DeviceConfig structure."""
+    config: AvsDeviceConfig = None
+    """The full AvsDeviceConfig structure."""
 
 
 def _getUIntPointer(value=0):

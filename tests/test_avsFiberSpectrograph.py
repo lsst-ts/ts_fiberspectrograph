@@ -35,7 +35,7 @@ from lsst.ts.FiberSpectrograph import AvsSimulator
 from lsst.ts.FiberSpectrograph import AvsFiberSpectrograph
 from lsst.ts.FiberSpectrograph import AvsReturnCode, AvsReturnError
 from lsst.ts.FiberSpectrograph import AvsDeviceStatus, AvsIdentity
-from lsst.ts.FiberSpectrograph import DeviceConfig
+from lsst.ts.FiberSpectrograph import AvsDeviceConfig
 
 
 class TestAvsFiberSpectrograph(asynctest.TestCase):
@@ -277,7 +277,7 @@ class TestAvsFiberSpectrograph(asynctest.TestCase):
         np.testing.assert_allclose(status.temperature, self.temperature)
         self.assertIsNone(status.config)
 
-        # Check that full=True returns a DeviceConfig instead of None
+        # Check that full=True returns a AvsDeviceConfig instead of None
         # (we're not worried about the contents of it here)
         status = spec.get_status(full=True)
         self.assertIsNotNone(status.config)
@@ -533,10 +533,10 @@ class TestAvsReturnError(unittest.TestCase):
         self.assertIn(msg, repr(err))
 
 
-class TestDeviceConfig(unittest.TestCase):
+class TestAvsDeviceConfig(unittest.TestCase):
     def test_str(self):
         """Test some specific aspects of the (long) string representation."""
-        config = DeviceConfig()
+        config = AvsDeviceConfig()
         string = str(config)
         self.assertIn("TecControl_m_Enable=False", string)
         self.assertNotIn("SpectrumCorrect", string)
