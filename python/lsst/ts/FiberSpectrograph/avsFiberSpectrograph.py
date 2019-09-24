@@ -20,7 +20,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 __all__ = ["AvsFiberSpectrograph", "AvsDeviceStatus", "AvsIdentity",
-           "AvsDeviceConfig", "AvsReturnCode", "AvsReturnError"]
+           "AvsDeviceConfig", "AvsReturnCode", "AvsReturnError", "AvsMeasureConfig"]
 
 import asyncio
 import ctypes
@@ -438,6 +438,19 @@ class AvsFiberSpectrograph:
                                               ctypes.POINTER(ctypes.c_double)]
 
 
+class FrozenMixin:
+    """Mixin to freeze a classes attributes, e.g. for subclasses of
+    `ctypes.Structure` to prevent mistyping structure attributes.
+    """
+    def __setattr__(self, key, value):
+        """To prevent accidentally assigning other attributes to this
+        structure (mostly in unittests).
+        """
+        if not hasattr(self, key):
+            raise TypeError(f"{self} is a frozen class; '{key}' is not an already-existing attribute.")
+        object.__setattr__(self, key, value)
+
+
 # size of these character fields in bytes
 AVS_USER_ID_LEN = 64
 AVS_SERIAL_LEN = 10
@@ -455,7 +468,7 @@ class AvsDeviceStatus(enum.IntEnum):
     USB_IN_USE_BY_OTHER = 3
 
 
-class AvsIdentity(ctypes.Structure):
+class AvsIdentity(ctypes.Structure, FrozenMixin):
     """Python structure to represent the `AvsIdentityType` C struct."""
     _pack_ = 1
     _fields_ = [("SerialNumber", ctypes.c_char * AVS_SERIAL_LEN),
@@ -466,7 +479,7 @@ class AvsIdentity(ctypes.Structure):
         serial = self.SerialNumber.decode('ascii')
         name = self.UserFriendlyName.decode('ascii')
         status = AvsDeviceStatus(struct.unpack('B', self.Status)[0])
-        return f'AvaIdentity("{serial}", "{name}", {repr(status)})'
+        return f'AvsIdentity("{serial}", "{name}", {repr(status)})'
 
     def __eq__(self, other):
         return (self.SerialNumber == other.SerialNumber and
@@ -474,7 +487,7 @@ class AvsIdentity(ctypes.Structure):
                 self.Status == other.Status)
 
 
-class AvsDeviceConfig(ctypes.Structure):
+class AvsDeviceConfig(ctypes.Structure, FrozenMixin):
     """Python structure to represent the `DeviceConfigType` C struct."""
     _pack_ = 1
     _fields_ = [("Len", ctypes.c_uint16),
@@ -558,10 +571,10 @@ class AvsDeviceConfig(ctypes.Structure):
                     "OemData"]
         attrs = ', '.join(f"{x[0]}={to_str(getattr(self, x[0]))}" for x in self._fields_
                           if x[0] not in too_long)
-        return f"DeviceConfigType({attrs})"
+        return f"AvsDeviceConfig({attrs})"
 
 
-class AvsMeasureConfig(ctypes.Structure):
+class AvsMeasureConfig(ctypes.Structure, FrozenMixin):
     _pack_ = 1
     _fields_ = [("StartPixel", ctypes.c_uint16),
                 ("StopPixel", ctypes.c_uint16),

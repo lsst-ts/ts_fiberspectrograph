@@ -24,6 +24,7 @@ import contextlib
 import io
 import itertools
 import logging
+import struct
 import time
 import unittest
 import unittest.mock
@@ -35,7 +36,7 @@ from lsst.ts.FiberSpectrograph import AvsSimulator
 from lsst.ts.FiberSpectrograph import AvsFiberSpectrograph
 from lsst.ts.FiberSpectrograph import AvsReturnCode, AvsReturnError
 from lsst.ts.FiberSpectrograph import AvsDeviceStatus, AvsIdentity
-from lsst.ts.FiberSpectrograph import AvsDeviceConfig
+from lsst.ts.FiberSpectrograph import AvsDeviceConfig, AvsMeasureConfig
 
 
 class TestAvsFiberSpectrograph(asynctest.TestCase):
@@ -538,9 +539,72 @@ class TestAvsDeviceConfig(unittest.TestCase):
         """Test some specific aspects of the (long) string representation."""
         config = AvsDeviceConfig()
         string = str(config)
+        self.assertIn("AvsDeviceConfig", string)
         self.assertIn("TecControl_m_Enable=False", string)
         self.assertNotIn("SpectrumCorrect", string)
         self.assertNotIn("OemData", string)
+
+    def test_frozen(self):
+        """Test that we cannot assign new attributes to this struct,
+        but that we can modify existing attributes.
+        """
+        config = AvsDeviceConfig()
+
+        with self.assertRaisesRegex(TypeError, "is a frozen class; 'blahblah'"):
+            config.blahblah = 101010
+
+        # Can we modify an existing value?
+        self.assertFalse(config.TecControl_m_Enable)
+        config.TecControl_m_Enable = True
+        self.assertTrue(config.TecControl_m_Enable)
+
+
+class TestAvsMeasureConfig(unittest.TestCase):
+    def test_frozen(self):
+        """Test that we cannot assign new attributes to this struct,
+        but that we can modify existing attributes.
+        """
+        config = AvsMeasureConfig()
+
+        with self.assertRaisesRegex(TypeError, "is a frozen class; 'blahblah'"):
+            config.blahblah = 101010
+
+        # Can we modify an existing value?
+        self.assertFalse(config.StartPixel)
+        config.StartPixel = True
+        self.assertTrue(config.StartPixel)
+
+
+class TestAvsIdentity(unittest.TestCase):
+    def test_str(self):
+        """Test some specific aspects of the string representation."""
+        serial_number = "12345"
+        name = "some name"
+        identity = AvsIdentity(bytes(str(serial_number), "ascii"),
+                               bytes(str(name), "ascii"),
+                               AvsDeviceStatus.USB_IN_USE_BY_OTHER.value)
+        string = str(identity)
+        self.assertIn("AvsIdentity", string)
+        self.assertIn(serial_number, string)
+        self.assertIn(name, string)
+        self.assertIn("USB_IN_USE_BY_OTHER", string)  # from the "Status" field
+
+    def test_frozen(self):
+        """Test that we cannot assign new attributes to this struct,
+        but that we can modify existing attributes.
+        """
+        serial_number = "12345"
+        name = "some name"
+        identity = AvsIdentity(bytes(str(serial_number), "ascii"),
+                               bytes(str(name), "ascii"),
+                               AvsDeviceStatus.USB_IN_USE_BY_OTHER.value)
+
+        with self.assertRaisesRegex(TypeError, "is a frozen class; 'blahblah'"):
+            identity.blahblah = 101010
+
+        # Can we modify an existing value?
+        identity.Status = AvsDeviceStatus.USB_AVAILABLE.value
+        self.assertEqual(struct.unpack('B', identity.Status)[0], AvsDeviceStatus.USB_AVAILABLE)
 
 
 if __name__ == "__main__":
