@@ -92,7 +92,7 @@ class TestAvsFiberSpectrograph(asynctest.TestCase):
     def test_connect_serial_number(self):
         """Test connecting to a device with a specific serial number."""
         serial_number = "54321"
-        self.n_devices = 2
+        n_devices = 2
         id1 = AvsIdentity(bytes(str(serial_number), "ascii"),
                           b"Fake Spectrograph 2",
                           AvsDeviceStatus.USB_AVAILABLE.value)
@@ -100,10 +100,10 @@ class TestAvsFiberSpectrograph(asynctest.TestCase):
         def mock_getList(a_listSize, a_pRequiredSize, a_pList):
             """Pretend that two devices are connected."""
             a_pList[:] = [self.id0, id1]
-            return self.n_devices
+            return n_devices
 
         self.patch.return_value.AVS_GetList.side_effect = mock_getList
-        self.patch.return_value.AVS_UpdateUSBDevices.return_value = self.n_devices
+        self.patch.return_value.AVS_UpdateUSBDevices.return_value = n_devices
 
         spec = AvsFiberSpectrograph(serial_number=serial_number)
         self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
@@ -113,7 +113,7 @@ class TestAvsFiberSpectrograph(asynctest.TestCase):
 
     def test_connect_no_serial_number_two_devices_fails(self):
         serial_number = "54321"
-        self.n_devices = 2
+        n_devices = 2
         id1 = AvsIdentity(bytes(str(serial_number), "ascii"),
                           b"Fake Spectrograph 2",
                           AvsDeviceStatus.USB_AVAILABLE.value)
@@ -122,10 +122,10 @@ class TestAvsFiberSpectrograph(asynctest.TestCase):
             """Pretend that two devices are connected."""
             a_pList[0] = self.id0
             a_pList[1] = id1
-            return self.n_devices
+            return n_devices
 
         self.patch.return_value.AVS_GetList.side_effect = mock_getList
-        self.patch.return_value.AVS_UpdateUSBDevices.return_value = self.n_devices
+        self.patch.return_value.AVS_UpdateUSBDevices.return_value = n_devices
 
         msg = "Multiple devices found, but no serial number specified. Attached devices: "
         with self.assertRaisesRegex(RuntimeError, msg):
