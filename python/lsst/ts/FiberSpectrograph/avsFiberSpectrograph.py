@@ -196,6 +196,10 @@ class AvsFiberSpectrograph:
                 msg = f"Device serial number {serial_number} not found in device list: {device_list}"
                 raise LookupError(msg)
 
+        statusCode = AvsDeviceStatus(struct.unpack('B', device.Status)[0])
+        if statusCode != AvsDeviceStatus.USB_AVAILABLE:
+            raise RuntimeError(f"Requested AVS device is already in use: {repr(statusCode)}")
+
         self.handle = self.libavs.AVS_Activate(device)
         assert_avs_code(self.handle, "Activate")
         if self.handle == AvsReturnCode.invalidHandle:

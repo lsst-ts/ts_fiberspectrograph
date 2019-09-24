@@ -191,6 +191,42 @@ class TestAvsFiberSpectrograph(asynctest.TestCase):
         self.patch.return_value.AVS_GetList.assert_not_called()
         self.patch.return_value.AVS_Activate.assert_not_called()
 
+    def test_connect_single_device_already_connected(self):
+        """Test that connect raises if the single device claims to already
+        be connected in its AvsIdentity field.
+        """
+        self.id0.Status = AvsDeviceStatus.USB_IN_USE_BY_APPLICATION.value
+
+        with self.assertRaisesRegex(RuntimeError, "Requested AVS device is already in use"):
+            AvsFiberSpectrograph()
+        self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
+        self.patch.return_value.AVS_GetList.assert_called_once()
+        self.patch.return_value.AVS_Activate.assert_not_called()
+
+    def test_connect_device_serial_number_already_connected(self):
+        """Test that connect raises if the device requested by serial number
+        claims to already be connected in its AvsIdentity field.
+        """
+        n_devices = 2
+        serial_number = "54321"
+        id1 = AvsIdentity(bytes(str(serial_number), "ascii"),
+                          b"Fake Spectrograph 2",
+                          AvsDeviceStatus.USB_IN_USE_BY_OTHER.value)
+
+        def mock_getList(a_listSize, a_pRequiredSize, a_pList):
+            """Pretend that the desired device is already connected."""
+            a_pList[:] = [self.id0, id1]
+            return n_devices
+
+        self.patch.return_value.AVS_GetList.side_effect = mock_getList
+        self.patch.return_value.AVS_UpdateUSBDevices.return_value = n_devices
+
+        with self.assertRaisesRegex(RuntimeError, "Requested AVS device is already in use"):
+            AvsFiberSpectrograph(serial_number=serial_number)
+        self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
+        self.patch.return_value.AVS_GetList.assert_called_once()
+        self.patch.return_value.AVS_Activate.assert_not_called()
+
     def test_connect_Activate_fails(self):
         """Test that connect raises if the Activate command fails."""
         self.patch.return_value.AVS_Activate.return_value = AvsReturnCode.ERR_DLL_INITIALISATION.value
