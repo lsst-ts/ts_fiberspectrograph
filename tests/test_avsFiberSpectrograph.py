@@ -424,6 +424,24 @@ class TestAvsFiberSpectrograph(asynctest.TestCase):
         self.patch.return_value.AVS_Measure.assert_called_once_with(self.handle, 0, 1)
         self.patch.return_value.AVS_PollScan.assert_called_once_with(self.handle)
 
+    async def test_expose_PollScan_timeout(self):
+        """Test that `expose` raises if it has to wait too long when polling.
+        """
+        duration = 0.5  # seconds
+        # Have the PollScan just run forever.
+        self.patch.return_value.AVS_PollScan.side_effect = itertools.repeat(0)
+
+        spec = AvsFiberSpectrograph()
+        # asyncio.TimeoutError would be raised if the `wait_for` times out,
+        # but the message would not include this text.
+        with self.assertRaisesRegex(asyncio.TimeoutError, "Timeout polling for exposure to be ready"):
+            # Use `wait_for` to keep `expose` from hanging if there is a bug.
+            await asyncio.wait_for(spec.expose(duration), 2)
+        self.patch.return_value.AVS_PrepareMeasure.assert_called_once()
+        self.patch.return_value.AVS_Measure.assert_called_once_with(self.handle, 0, 1)
+        # PollScan will be called a hundred times or so.
+        self.patch.return_value.AVS_PollScan.assert_called()
+
     async def test_expose_GetScopeData_fails(self):
         duration = 0.5  # seconds
         self.patch.return_value.AVS_GetScopeData.side_effect = None
