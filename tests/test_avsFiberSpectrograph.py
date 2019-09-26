@@ -20,7 +20,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import asyncio
-import asynctest
 import contextlib
 import io
 import itertools
@@ -29,6 +28,7 @@ import time
 import unittest
 import unittest.mock
 
+import asynctest
 import numpy as np
 
 from lsst.ts.FiberSpectrograph import AvsSimulator
@@ -38,8 +38,8 @@ from lsst.ts.FiberSpectrograph import AvsDeviceStatus, AvsIdentity
 from lsst.ts.FiberSpectrograph import DeviceConfig
 
 
-class TestFiberSpectrograph(asynctest.TestCase):
-    """Tests of the python API for the Avantes AvaSpec-ULS-RS-TEC.
+class TestAvsFiberSpectrograph(asynctest.TestCase):
+    """Tests of the python API for the Avantes AvaSpec-ULS spectrograph.
     """
     def setUp(self):
         """This setUp configures the mock for a "no error conditions" use case,

@@ -1,90 +1,169 @@
-# import asyncio
-# import traceback
-import enum
-import pathlib
-import numpy as np
+# This file is part of ts_FiberSpectrograph.
+#
+# Developed for the LSST Data Management System.
+# This product includes software developed by the LSST Project
+# (https://www.lsst.org).
+# See the COPYRIGHT file at the top-level directory of this distribution
+# for details of code ownership.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from lsst.ts.FiberSpectrograph.model import FiberSpec
-from lsst.ts.salobj import ConfigurableCsc, State
+__all__ = ["FiberSpectrographCsc"]
+
+import asyncio
+
+from .avsSimulator import AvsSimulator
+from .avsFiberSpectrograph import AvsFiberSpectrograph
+from lsst.ts.idl.enums.FiberSpectrograph import ExposureState
+from lsst.ts import salobj
 
 
-class DetailedState(enum.IntEnum):
-    """ For the FiberSpectrograph, detailed state indicate if the instrument
-        is IMAGING i.e. capturing a spectrum or NOTIMAGING i.e idle
-        possible detailed states:
-        NOTIMAGING: Available to take a spectrum on receiving a
-        CaptureSpectImage command
-        IMAGING: Currently taking an image and will reject any incoming
-        CaptureSpectImage command
+class FiberSpectrographCsc(salobj.BaseCsc):
+    """Commandable SAL Component (CSC) to communicate with the Avantes Fiber
+    Spectrograph.
+
+    Parameters
+    ----------
+    initial_state : `salobj.State` or `int` (optional)
+        The initial state of the CSC. This is provided for unit testing,
+        as real CSCs should start up in `lsst.ts.salobj.StateSTANDBY`,
+        the default.
+    initial_simulation_mode : `int` (optional)
+        Initial simulation mode.
+
+    Notes
+    -----
+    **Simulation Modes**
+
+    Supported simulation modes:
+
+    * 0: regular operation
+    * 1: simulation mode: start a mock spectrograph library and talk to it
+         instead of the real device.
+
+    **Error codes**
+
+    * 1: If there is an error connecting to the spectrograph.
+    * 20: If there is an error taking an exposure.
     """
-    NOTIMAGING = 1
-    IMAGING = 2
+    def __init__(self, initial_state=salobj.State.STANDBY,
+                 initial_simulation_mode=0, index=0):
+        self._simulator = AvsSimulator()
+        self.device = None
 
+        self.telemetry_loop_task = salobj.make_done_future()
+        self.telemetry_interval = 10  # seconds between telemetry output
 
-class FiberSpectrograph(ConfigurableCsc):
-    """Configurable Commandable SAL Component (CSC) for the Fiber Spectrograph
-    """
-    def _init_(self, index, config_dir=None, initial_state=State.STANDBY):
+        # TODO DM-21437: we will have to do something with the index here,
+        # once we figure out what the various spectrograph indexes are.
+        # For example, we'll probably use the index to determine the
+        # spectrograph serial number to connect to.
+        super().__init__("FiberSpectrograph", index=index,
+                         initial_state=initial_state, initial_simulation_mode=initial_simulation_mode)
+
+    def report_summary_state(self):
+        try:
+            # disabled: connect and send telemetry, but no commands allowed.
+            if self.summary_state in (salobj.State.ENABLED, salobj.State.DISABLED):
+                if self.device is None:
+                    try:
+                        self.device = AvsFiberSpectrograph()
+                    except Exception as e:
+                        msg = "Failed to connect to fiber spectrograph."
+                        self.fault(code=1, report=f"{msg}: {repr(e)}")
+                        raise salobj.ExpectedError(msg)
+
+                if self.telemetry_loop_task.done():
+                    self.telemetry_loop_task = asyncio.create_task(self.telemetry_loop())
+                status = self.device.get_status()
+                self.evt_deviceInfo.set_put(npixels=status.n_pixels,
+                                            fpgaVersion=status.fpga_version,
+                                            firmwareVersion=status.firmware_version,
+                                            libraryVersion=status.library_version)
+            else:
+                self.telemetry_loop_task.cancel()
+                if self.device is not None:
+                    self.device.disconnect()
+                self.device = None
+        finally:
+            # Always report the final state, whatever happens above.
+            super().report_summary_state()
+
+    async def close_tasks(self):
+        """Kill the telemetry loop if we are closed outside of OFFLINE.
+
+        This keeps tests from emitting warnings about a pending task.
         """
-        Initialize FiberSpectrograph CSC.
+        await super().close_tasks()
+        self.telemetry_loop_task.cancel()
+
+    async def telemetry_loop(self):
+        """Output telemetry information at regular intervals.
+
+        The primary telemetry from the fiber spectrograph is the temperature.
         """
-        schema_path = pathlib.Path(__file__).resolve().parents[4].joinpath(
-            "schema", "fiberspectrograph.yaml")
+        while True:
+            status = self.device.get_status()
+            self.tel_temperature.set_put(temperature=status.temperature,
+                                         setpoint=status.temperature_setpoint)
+            await asyncio.sleep(self.telemetry_interval)
 
-        super().__init__("FiberSpectrograph", index=index, schema_path=schema_path,
-                         config_dir=config_dir, initial_state=initial_state)
+    async def implement_simulation_mode(self, simulation_mode):
+        if simulation_mode == 0:
+            self._simulator.stop()
+        if simulation_mode == 1:
+            self._simulator.start()
 
-        self._detailed_state = DetailedState.NOTIMAGING
+    async def do_expose(self, data):
+        """Take an exposure with the connected spectrograph.
 
-    def detailed_state(self):
-        """Return the current value for detailed state.
-        Returns
-        -------
-        detailed_state : np.uint8
-        """
-        return np.uint8(self._detailed_state)
+        **WARNING**
+        The output data is currently dropped on the floor, until we have a
+        clear path for dealing with the files.
 
-    async def start(self):
-        await super().start()
-        # Instantiate FiberSpec() object
-        self.model = FiberSpec()
-        # _init_ is run on start and device handle serial number etc are
-        # obtained.
-        FiberSpec.__init__()
-
-    async def begin_enable(self):
-        pass
-
-    async def do_captureSpectImage(self, data):
-        self.assert_enable("captureSpectImage")
-        self.assert_detailed("captureSpectImage")
-        self._detailed_state = DetailedState.IMAGING
-        if self.integrationTime < 0 or self.integrationTime > 60:
-            raise self.base.ExpectedError("Integration time is too long or invalid")
-        else:
-            await self.model.captureSpectImage()
-
-    def assert_detailed(self, action):
-        """Assert that an action that requires NotImaging Detailed state
-        can be run.
-        """
-        if self.detailed_state != DetailedState.NOTIMAGING:
-            raise self.base.ExpectedError(f"{action} not allowed in state {self.detailed_state!r}")
-
-    def get_config_pkg():
-        return "ts_config_attcs"
-
-    async def configure(self, config):
-        """Implement method to configure the CSC.
         Parameters
         ----------
-        config : `object`
-            The configuration as described by the schema at ``schema_path``,
-            as a struct-like object.
-        Notes
-        -----
-        Called when running the ``start`` command, just before changing
-        summary state from `State.STANDBY` to `State.DISABLED`.
-        """
+        data : `DataType`
+            Command data
 
-        pass
+        Raises
+        ------
+        asyncio.CancelledError
+            Raised if the exposure is cancelled before it completes.
+        lsst.ts.salobj.ExpectedError
+            Raised if an error occurs while taking the exposure.
+        """
+        try:
+            task = asyncio.create_task(self.device.expose(data.duration))
+            self.evt_exposureState.set_put(status=ExposureState.INTEGRATING)
+            wavelength, spectrum = await task
+            self.evt_exposureState.set_put(status=ExposureState.DONE)
+        except asyncio.CancelledError:
+            self.evt_exposureState.set_put(status=ExposureState.CANCELLED)
+            raise
+        except Exception as e:
+            self.evt_exposureState.set_put(status=ExposureState.FAILED)
+            msg = "Failed to take exposure with fiber spectrograph."
+            self.fault(code=20, report=f"{msg}: {repr(e)}")
+            raise salobj.ExpectedError(msg)
+
+    async def do_cancelExposure(self, data):
+        """Cancel an ongoing exposure.
+
+        Parameters
+        ----------
+        data : `DataType`
+            Command data
+        """
+        self.device.stop_exposure()
