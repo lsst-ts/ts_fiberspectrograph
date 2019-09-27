@@ -24,6 +24,7 @@ import contextlib
 import io
 import itertools
 import logging
+import struct
 import time
 import unittest
 import unittest.mock
@@ -35,7 +36,7 @@ from lsst.ts.FiberSpectrograph import AvsSimulator
 from lsst.ts.FiberSpectrograph import AvsFiberSpectrograph
 from lsst.ts.FiberSpectrograph import AvsReturnCode, AvsReturnError
 from lsst.ts.FiberSpectrograph import AvsDeviceStatus, AvsIdentity
-from lsst.ts.FiberSpectrograph import DeviceConfig
+from lsst.ts.FiberSpectrograph import AvsDeviceConfig, AvsMeasureConfig
 
 
 class TestAvsFiberSpectrograph(asynctest.TestCase):
@@ -92,7 +93,7 @@ class TestAvsFiberSpectrograph(asynctest.TestCase):
     def test_connect_serial_number(self):
         """Test connecting to a device with a specific serial number."""
         serial_number = "54321"
-        self.n_devices = 2
+        n_devices = 2
         id1 = AvsIdentity(bytes(str(serial_number), "ascii"),
                           b"Fake Spectrograph 2",
                           AvsDeviceStatus.USB_AVAILABLE.value)
@@ -100,10 +101,10 @@ class TestAvsFiberSpectrograph(asynctest.TestCase):
         def mock_getList(a_listSize, a_pRequiredSize, a_pList):
             """Pretend that two devices are connected."""
             a_pList[:] = [self.id0, id1]
-            return self.n_devices
+            return n_devices
 
         self.patch.return_value.AVS_GetList.side_effect = mock_getList
-        self.patch.return_value.AVS_UpdateUSBDevices.return_value = self.n_devices
+        self.patch.return_value.AVS_UpdateUSBDevices.return_value = n_devices
 
         spec = AvsFiberSpectrograph(serial_number=serial_number)
         self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
@@ -113,7 +114,7 @@ class TestAvsFiberSpectrograph(asynctest.TestCase):
 
     def test_connect_no_serial_number_two_devices_fails(self):
         serial_number = "54321"
-        self.n_devices = 2
+        n_devices = 2
         id1 = AvsIdentity(bytes(str(serial_number), "ascii"),
                           b"Fake Spectrograph 2",
                           AvsDeviceStatus.USB_AVAILABLE.value)
@@ -122,10 +123,10 @@ class TestAvsFiberSpectrograph(asynctest.TestCase):
             """Pretend that two devices are connected."""
             a_pList[0] = self.id0
             a_pList[1] = id1
-            return self.n_devices
+            return n_devices
 
         self.patch.return_value.AVS_GetList.side_effect = mock_getList
-        self.patch.return_value.AVS_UpdateUSBDevices.return_value = self.n_devices
+        self.patch.return_value.AVS_UpdateUSBDevices.return_value = n_devices
 
         msg = "Multiple devices found, but no serial number specified. Attached devices: "
         with self.assertRaisesRegex(RuntimeError, msg):
@@ -188,6 +189,42 @@ class TestAvsFiberSpectrograph(asynctest.TestCase):
             AvsFiberSpectrograph()
         self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
         self.patch.return_value.AVS_GetList.assert_not_called()
+        self.patch.return_value.AVS_Activate.assert_not_called()
+
+    def test_connect_single_device_already_connected(self):
+        """Test that connect raises if the single device claims to already
+        be connected in its AvsIdentity field.
+        """
+        self.id0.Status = AvsDeviceStatus.USB_IN_USE_BY_APPLICATION.value
+
+        with self.assertRaisesRegex(RuntimeError, "Requested AVS device is already in use"):
+            AvsFiberSpectrograph()
+        self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
+        self.patch.return_value.AVS_GetList.assert_called_once()
+        self.patch.return_value.AVS_Activate.assert_not_called()
+
+    def test_connect_device_serial_number_already_connected(self):
+        """Test that connect raises if the device requested by serial number
+        claims to already be connected in its AvsIdentity field.
+        """
+        n_devices = 2
+        serial_number = "54321"
+        id1 = AvsIdentity(bytes(str(serial_number), "ascii"),
+                          b"Fake Spectrograph 2",
+                          AvsDeviceStatus.USB_IN_USE_BY_OTHER.value)
+
+        def mock_getList(a_listSize, a_pRequiredSize, a_pList):
+            """Pretend that the desired device is already connected."""
+            a_pList[:] = [self.id0, id1]
+            return n_devices
+
+        self.patch.return_value.AVS_GetList.side_effect = mock_getList
+        self.patch.return_value.AVS_UpdateUSBDevices.return_value = n_devices
+
+        with self.assertRaisesRegex(RuntimeError, "Requested AVS device is already in use"):
+            AvsFiberSpectrograph(serial_number=serial_number)
+        self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
+        self.patch.return_value.AVS_GetList.assert_called_once()
         self.patch.return_value.AVS_Activate.assert_not_called()
 
     def test_connect_Activate_fails(self):
@@ -277,7 +314,7 @@ class TestAvsFiberSpectrograph(asynctest.TestCase):
         np.testing.assert_allclose(status.temperature, self.temperature)
         self.assertIsNone(status.config)
 
-        # Check that full=True returns a DeviceConfig instead of None
+        # Check that full=True returns a AvsDeviceConfig instead of None
         # (we're not worried about the contents of it here)
         status = spec.get_status(full=True)
         self.assertIsNotNone(status.config)
@@ -533,14 +570,77 @@ class TestAvsReturnError(unittest.TestCase):
         self.assertIn(msg, repr(err))
 
 
-class TestDeviceConfig(unittest.TestCase):
+class TestAvsDeviceConfig(unittest.TestCase):
     def test_str(self):
         """Test some specific aspects of the (long) string representation."""
-        config = DeviceConfig()
+        config = AvsDeviceConfig()
         string = str(config)
+        self.assertIn("AvsDeviceConfig", string)
         self.assertIn("TecControl_m_Enable=False", string)
         self.assertNotIn("SpectrumCorrect", string)
         self.assertNotIn("OemData", string)
+
+    def test_frozen(self):
+        """Test that we cannot assign new attributes to this struct,
+        but that we can modify existing attributes.
+        """
+        config = AvsDeviceConfig()
+
+        with self.assertRaisesRegex(TypeError, "is a frozen class; 'blahblah'"):
+            config.blahblah = 101010
+
+        # Can we modify an existing value?
+        self.assertFalse(config.TecControl_m_Enable)
+        config.TecControl_m_Enable = True
+        self.assertTrue(config.TecControl_m_Enable)
+
+
+class TestAvsMeasureConfig(unittest.TestCase):
+    def test_frozen(self):
+        """Test that we cannot assign new attributes to this struct,
+        but that we can modify existing attributes.
+        """
+        config = AvsMeasureConfig()
+
+        with self.assertRaisesRegex(TypeError, "is a frozen class; 'blahblah'"):
+            config.blahblah = 101010
+
+        # Can we modify an existing value?
+        self.assertFalse(config.StartPixel)
+        config.StartPixel = True
+        self.assertTrue(config.StartPixel)
+
+
+class TestAvsIdentity(unittest.TestCase):
+    def test_str(self):
+        """Test some specific aspects of the string representation."""
+        serial_number = "12345"
+        name = "some name"
+        identity = AvsIdentity(bytes(str(serial_number), "ascii"),
+                               bytes(str(name), "ascii"),
+                               AvsDeviceStatus.USB_IN_USE_BY_OTHER.value)
+        string = str(identity)
+        self.assertIn("AvsIdentity", string)
+        self.assertIn(serial_number, string)
+        self.assertIn(name, string)
+        self.assertIn("USB_IN_USE_BY_OTHER", string)  # from the "Status" field
+
+    def test_frozen(self):
+        """Test that we cannot assign new attributes to this struct,
+        but that we can modify existing attributes.
+        """
+        serial_number = "12345"
+        name = "some name"
+        identity = AvsIdentity(bytes(str(serial_number), "ascii"),
+                               bytes(str(name), "ascii"),
+                               AvsDeviceStatus.USB_IN_USE_BY_OTHER.value)
+
+        with self.assertRaisesRegex(TypeError, "is a frozen class; 'blahblah'"):
+            identity.blahblah = 101010
+
+        # Can we modify an existing value?
+        identity.Status = AvsDeviceStatus.USB_AVAILABLE.value
+        self.assertEqual(struct.unpack('B', identity.Status)[0], AvsDeviceStatus.USB_AVAILABLE)
 
 
 if __name__ == "__main__":

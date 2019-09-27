@@ -20,7 +20,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 __all__ = ["AvsFiberSpectrograph", "AvsDeviceStatus", "AvsIdentity",
-           "DeviceConfig", "AvsReturnCode", "AvsReturnError"]
+           "AvsDeviceConfig", "AvsReturnCode", "AvsReturnError", "AvsMeasureConfig"]
 
 import asyncio
 import ctypes
@@ -196,6 +196,10 @@ class AvsFiberSpectrograph:
                 msg = f"Device serial number {serial_number} not found in device list: {device_list}"
                 raise LookupError(msg)
 
+        statusCode = AvsDeviceStatus(struct.unpack('B', device.Status)[0])
+        if statusCode != AvsDeviceStatus.USB_AVAILABLE:
+            raise RuntimeError(f"Requested AVS device is already in use: {repr(statusCode)}")
+
         self.handle = self.libavs.AVS_Activate(device)
         assert_avs_code(self.handle, "Activate")
         if self.handle == AvsReturnCode.invalidHandle:
@@ -241,7 +245,7 @@ class AvsFiberSpectrograph:
         Parameters
         ----------
         full : `bool`
-            Include the full `DeviceConfig` structure in the returned status.
+            Include the full `AvsDeviceConfig` structure in the output.
             This can be useful for understanding what other information is
             available from the spectrograph, but requires having the Avantes
             manual on hand to decode it.
@@ -263,7 +267,7 @@ class AvsFiberSpectrograph:
         code = self.libavs.AVS_GetVersionInfo(self.handle, fpga_version, firmware_version, library_version)
         assert_avs_code(code, "GetVersionInfo")
 
-        config = DeviceConfig()
+        config = AvsDeviceConfig()
         code = self.libavs.AVS_GetParameter(self.handle,
                                             ctypes.sizeof(config),
                                             _getUIntPointer(ctypes.sizeof(config)),
@@ -343,7 +347,7 @@ class AvsFiberSpectrograph:
         asyncio.CancelledError
             Raised if the exposure is stopped before it is read out.
         """
-        config = MeasureConfig()
+        config = AvsMeasureConfig()
         config.IntegrationTime = duration * 1000  # seconds->milliseconds
         config.StartPixel = 0
         config.StopPixel = self._n_pixels - 1
@@ -419,7 +423,7 @@ class AvsFiberSpectrograph:
         self.libavs.AVS_GetParameter.argtypes = [ctypes.c_long,
                                                  ctypes.c_uint,
                                                  ctypes.POINTER(ctypes.c_uint),
-                                                 ctypes.POINTER(DeviceConfig)]
+                                                 ctypes.POINTER(AvsDeviceConfig)]
         self.libavs.AVS_GetVersionInfo.argtypes = [ctypes.c_long,
                                                    ctypes.POINTER(ctypes.c_ubyte),
                                                    ctypes.POINTER(ctypes.c_ubyte),
@@ -428,7 +432,7 @@ class AvsFiberSpectrograph:
                                                 ctypes.c_ubyte,
                                                 ctypes.POINTER(ctypes.c_float)]
         self.libavs.AVS_PrepareMeasure.argtypes = [ctypes.c_long,
-                                                   ctypes.POINTER(MeasureConfig)]
+                                                   ctypes.POINTER(AvsMeasureConfig)]
         # Measure's second argument is the callback function pointer, but we
         # aren't using callbacks here, so it will always be NULL==0.
         self.libavs.AVS_Measure.argtypes = [ctypes.c_long,
@@ -436,6 +440,19 @@ class AvsFiberSpectrograph:
                                             ctypes.c_short]
         self.libavs.AVS_GetLambda.argtypes = [ctypes.c_long,
                                               ctypes.POINTER(ctypes.c_double)]
+
+
+class FrozenMixin:
+    """Mixin to freeze a classes attributes, e.g. for subclasses of
+    `ctypes.Structure` to prevent mistyping structure attributes.
+    """
+    def __setattr__(self, key, value):
+        """To prevent accidentally assigning other attributes to this
+        structure (mostly in unittests).
+        """
+        if not hasattr(self, key):
+            raise TypeError(f"{self} is a frozen class; '{key}' is not an already-existing attribute.")
+        object.__setattr__(self, key, value)
 
 
 # size of these character fields in bytes
@@ -455,7 +472,7 @@ class AvsDeviceStatus(enum.IntEnum):
     USB_IN_USE_BY_OTHER = 3
 
 
-class AvsIdentity(ctypes.Structure):
+class AvsIdentity(ctypes.Structure, FrozenMixin):
     """Python structure to represent the `AvsIdentityType` C struct."""
     _pack_ = 1
     _fields_ = [("SerialNumber", ctypes.c_char * AVS_SERIAL_LEN),
@@ -466,7 +483,7 @@ class AvsIdentity(ctypes.Structure):
         serial = self.SerialNumber.decode('ascii')
         name = self.UserFriendlyName.decode('ascii')
         status = AvsDeviceStatus(struct.unpack('B', self.Status)[0])
-        return f'AvaIdentity("{serial}", "{name}", {repr(status)})'
+        return f'AvsIdentity("{serial}", "{name}", {repr(status)})'
 
     def __eq__(self, other):
         return (self.SerialNumber == other.SerialNumber and
@@ -474,7 +491,7 @@ class AvsIdentity(ctypes.Structure):
                 self.Status == other.Status)
 
 
-class DeviceConfig(ctypes.Structure):
+class AvsDeviceConfig(ctypes.Structure, FrozenMixin):
     """Python structure to represent the `DeviceConfigType` C struct."""
     _pack_ = 1
     _fields_ = [("Len", ctypes.c_uint16),
@@ -558,10 +575,10 @@ class DeviceConfig(ctypes.Structure):
                     "OemData"]
         attrs = ', '.join(f"{x[0]}={to_str(getattr(self, x[0]))}" for x in self._fields_
                           if x[0] not in too_long)
-        return f"DeviceConfigType({attrs})"
+        return f"AvsDeviceConfig({attrs})"
 
 
-class MeasureConfig(ctypes.Structure):
+class AvsMeasureConfig(ctypes.Structure, FrozenMixin):
     _pack_ = 1
     _fields_ = [("StartPixel", ctypes.c_uint16),
                 ("StopPixel", ctypes.c_uint16),
@@ -584,7 +601,7 @@ class MeasureConfig(ctypes.Structure):
 
     def __repr__(self):
         attrs = ', '.join(f"{x[0]}={getattr(self, x[0])}" for x in self._fields_)
-        return f"MeasureConfig({attrs})"
+        return f"AvsMeasureConfig({attrs})"
 
 
 @enum.unique
@@ -658,8 +675,8 @@ class SpectrographStatus:
     """The detector temperature set point (degrees Celsius)."""
     temperature: float
     """The temperature at the optical bench thermistor (degrees Celsius)."""
-    config: DeviceConfig = None
-    """The full DeviceConfig structure."""
+    config: AvsDeviceConfig = None
+    """The full AvsDeviceConfig structure."""
 
 
 def _getUIntPointer(value=0):
