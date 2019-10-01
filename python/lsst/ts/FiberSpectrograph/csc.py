@@ -23,10 +23,17 @@ __all__ = ["FiberSpectrographCsc"]
 
 import asyncio
 
+import astropy.time
+import astropy.units as u
+
 from .avsSimulator import AvsSimulator
 from .avsFiberSpectrograph import AvsFiberSpectrograph
+from . import dataManager
 from lsst.ts.idl.enums.FiberSpectrograph import ExposureState
 from lsst.ts import salobj
+
+# The instrument names to be accessed by index number.
+instruments = ["TestSpectrograph"]
 
 
 class FiberSpectrographCsc(salobj.BaseCsc):
@@ -35,12 +42,15 @@ class FiberSpectrographCsc(salobj.BaseCsc):
 
     Parameters
     ----------
-    initial_state : `salobj.State` or `int` (optional)
+    initial_state : `salobj.State` or `int`, optional
         The initial state of the CSC. This is provided for unit testing,
         as real CSCs should start up in `lsst.ts.salobj.StateSTANDBY`,
         the default.
-    initial_simulation_mode : `int` (optional)
+    initial_simulation_mode : `int`, optional
         Initial simulation mode.
+    outpath : `str`, optional
+        Write output files to this path.
+        TODO: this is temporary until we have a working LFA.
 
     Notes
     -----
@@ -58,10 +68,14 @@ class FiberSpectrographCsc(salobj.BaseCsc):
     * 20: If there is an error taking an exposure.
     """
     def __init__(self, initial_state=salobj.State.STANDBY,
-                 initial_simulation_mode=0, index=0):
+                 initial_simulation_mode=0, index=0,
+                 outpath=None):
         self._simulator = AvsSimulator()
         self.device = None
 
+        self.data_manager = dataManager.DataManager(instrument=instruments[index],
+                                                    origin=type(self).__name__,
+                                                    outpath=outpath)
         self.telemetry_loop_task = salobj.make_done_future()
         self.telemetry_interval = 10  # seconds between telemetry output
 
@@ -128,10 +142,6 @@ class FiberSpectrographCsc(salobj.BaseCsc):
     async def do_expose(self, data):
         """Take an exposure with the connected spectrograph.
 
-        **WARNING**
-        The output data is currently dropped on the floor, until we have a
-        clear path for dealing with the files.
-
         Parameters
         ----------
         data : `DataType`
@@ -148,10 +158,27 @@ class FiberSpectrographCsc(salobj.BaseCsc):
         if msg is not None:
             raise salobj.ExpectedError(msg)
         try:
+            date_begin = astropy.time.Time.now()
             task = asyncio.create_task(self.device.expose(data.duration))
             self.evt_exposureState.set_put(status=ExposureState.INTEGRATING)
             wavelength, spectrum = await task
+            date_end = astropy.time.Time.now()
             self.evt_exposureState.set_put(status=ExposureState.DONE)
+            temperature = self.tel_temperature.data.temperature * u.deg_C
+            setpoint = self.tel_temperature.data.setpoint * u.deg_C
+            n_pixels = self.evt_deviceInfo.data.npixels
+            specData = dataManager.SpectrographData(wavelength=wavelength,
+                                                    spectrum=spectrum,
+                                                    duration=data.duration,
+                                                    date_begin=date_begin,
+                                                    date_end=date_end,
+                                                    type=data.type,
+                                                    source=data.source,
+                                                    temperature=temperature,
+                                                    temperature_setpoint=setpoint,
+                                                    n_pixels=n_pixels)
+            output = self.data_manager(specData)
+            self.evt_largeFileObjectAvailable.set_put(url=output)
         except asyncio.TimeoutError as e:
             self.evt_exposureState.set_put(status=ExposureState.TIMEDOUT)
             msg = f"Timeout waiting for exposure: {repr(e)}"
