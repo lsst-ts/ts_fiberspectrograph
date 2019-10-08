@@ -35,6 +35,10 @@ import numpy as np
 # If installed via the vendor packages, it will be in `/usr/local/lib`.
 LIBRARY_PATH = "/usr/local/lib/libavs.so.0.2.0"
 
+# minimum and maximum allowed exposure duration in seconds
+MIN_DURATION = 0.000002
+MAX_DURATION = 600
+
 
 class AvsReturnError(Exception):
     """Exception raised if an ``AVS_*`` C function returns an error code.
@@ -292,6 +296,37 @@ class AvsFiberSpectrograph:
                                     config=config if full else None)
         return status
 
+    def check_expose_ok(self, duration):
+        """Check that an expose command would be allowed to succeed.
+
+        Checks that parameters are in a valid range, and that no exposures are
+        currently ongoing, returning a message describing the failure state if
+        there would be one, or `None` otherwise.
+
+        Parameters
+        ----------
+        duration : `float`
+            Integration time of the exposure in seconds.
+
+        Returns
+        -------
+        msg : `str` or `None`
+            The string describing why ``expose`` would fail, or None if an
+            it should not.
+
+        Notes
+        -----
+        The ``Parameters`` of this method should match that of ``expose``, as
+        its purpose is to check the validity of those parameters.
+        """
+        if not self._expose_task.done():
+            return "Cannot start new exposure until current exposure finishes."
+
+        if (duration < MIN_DURATION) or (duration > MAX_DURATION):
+            return f"Exposure duration not in valid range: {MIN_DURATION} - {MAX_DURATION} seconds"
+
+        return None
+
     async def expose(self, duration):
         """Take an exposure with the currently connected spectrograph.
 
@@ -310,15 +345,17 @@ class AvsFiberSpectrograph:
         Raises
         ------
         RuntimeError
-            Raised if there is an active exposure currently ongoing.
+            Raised if we cannot start the exposure for whatever reason (e.g.
+            invalid duration, ongoing exposure).
         AvsReturnError
             Raised if there is an error in preparation, measurement, or
             readout from the device.
         asyncio.CancelledError
             Raised if the exposure is stopped before it is read out.
         """
-        if not self._expose_task.done():
-            raise RuntimeError("Cannot start new exposure until current exposure finishes.")
+        msg = self.check_expose_ok(duration)
+        if msg is not None:
+            raise RuntimeError(msg)
         self._expose_task = asyncio.create_task(self._do_expose(duration))
         await self._expose_task
         return self._expose_task.result()

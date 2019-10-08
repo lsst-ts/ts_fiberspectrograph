@@ -170,6 +170,21 @@ class TestFiberSpectrographCsc(asynctest.TestCase):
             await task
             await self.check_exposureState(harness.remote, ExposureState.DONE)
 
+            # Check that out of range durations do not put us in FAULT,
+            # and do not change the exposure state.
+            duration = 1e-9  # seconds
+            task = asyncio.create_task(harness.remote.cmd_expose.set_start(timeout=STD_TIMEOUT+duration,
+                                                                           duration=duration))
+            with salobj.assertRaisesAckError(ack=salobj.SalRetCode.CMD_FAILED,
+                                             result_contains="Exposure duration"):
+                await task
+            # No ExposureState message should have been emitted.
+            with self.assertRaises(asyncio.TimeoutError):
+                await harness.remote.evt_exposureState.next(flush=False, timeout=STD_TIMEOUT)
+            # We should not have left ENABLED.
+            with self.assertRaises(asyncio.TimeoutError):
+                await harness.remote.evt_exposureState.next(flush=False, timeout=STD_TIMEOUT)
+
     async def test_expose_fails(self):
         """Test that a failed exposure puts us in the FAULT state, which will
         disconnect the device.

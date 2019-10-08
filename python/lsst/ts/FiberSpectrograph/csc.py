@@ -144,6 +144,9 @@ class FiberSpectrographCsc(salobj.BaseCsc):
         lsst.ts.salobj.ExpectedError
             Raised if an error occurs while taking the exposure.
         """
+        msg = self.device.check_expose_ok(data.duration)
+        if msg is not None:
+            raise salobj.ExpectedError(msg)
         try:
             task = asyncio.create_task(self.device.expose(data.duration))
             self.evt_exposureState.set_put(status=ExposureState.INTEGRATING)
