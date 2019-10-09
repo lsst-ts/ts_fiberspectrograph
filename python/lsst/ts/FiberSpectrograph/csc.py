@@ -78,7 +78,7 @@ class FiberSpectrographCsc(salobj.BaseCsc):
             if self.summary_state in (salobj.State.ENABLED, salobj.State.DISABLED):
                 if self.device is None:
                     try:
-                        self.device = AvsFiberSpectrograph()
+                        self.device = AvsFiberSpectrograph(log=self.log)
                     except Exception as e:
                         msg = "Failed to connect to fiber spectrograph."
                         self.fault(code=1, report=f"{msg}: {repr(e)}")
@@ -144,6 +144,9 @@ class FiberSpectrographCsc(salobj.BaseCsc):
         lsst.ts.salobj.ExpectedError
             Raised if an error occurs while taking the exposure.
         """
+        msg = self.device.check_expose_ok(data.duration)
+        if msg is not None:
+            raise salobj.ExpectedError(msg)
         try:
             task = asyncio.create_task(self.device.expose(data.duration))
             self.evt_exposureState.set_put(status=ExposureState.INTEGRATING)
@@ -154,8 +157,8 @@ class FiberSpectrographCsc(salobj.BaseCsc):
             raise
         except Exception as e:
             self.evt_exposureState.set_put(status=ExposureState.FAILED)
-            msg = "Failed to take exposure with fiber spectrograph."
-            self.fault(code=20, report=f"{msg}: {repr(e)}")
+            msg = f"Failed to take exposure with fiber spectrograph: {repr(e)}"
+            self.fault(code=20, report=msg)
             raise salobj.ExpectedError(msg)
 
     async def do_cancelExposure(self, data):

@@ -34,6 +34,7 @@ import numpy as np
 
 from lsst.ts.FiberSpectrograph import AvsSimulator
 from lsst.ts.FiberSpectrograph import AvsFiberSpectrograph
+from lsst.ts.FiberSpectrograph.avsFiberSpectrograph import MIN_DURATION, MAX_DURATION
 from lsst.ts.FiberSpectrograph import AvsReturnCode, AvsReturnError
 from lsst.ts.FiberSpectrograph import AvsDeviceStatus, AvsIdentity
 from lsst.ts.FiberSpectrograph import AvsDeviceConfig, AvsMeasureConfig
@@ -368,7 +369,7 @@ class TestAvsFiberSpectrograph(asynctest.TestCase):
 
         task = asyncio.create_task(spec.expose(duration))
         await asyncio.sleep(0.1)  # give the event loop time to start
-        with self.assertRaises(RuntimeError):
+        with self.assertRaisesRegex(RuntimeError, "Cannot start new exposure"):
             task2 = asyncio.create_task(spec.expose(duration))
             await task2
         await task
@@ -434,6 +435,37 @@ class TestAvsFiberSpectrograph(asynctest.TestCase):
         self.patch.return_value.AVS_PrepareMeasure.assert_called_once()
         self.patch.return_value.AVS_Measure.assert_called_once_with(self.handle, 0, 1)
         self.assertEqual(self.patch.return_value.AVS_PollScan.call_count, 4)
+
+    async def test_expose_duration_out_of_range(self):
+        """The vendor docs specify 0.002ms - 600s as valid durations."""
+
+        async def check_duration_fails(duration):
+            spec = AvsFiberSpectrograph()
+            with self.assertRaisesRegex(RuntimeError, "Exposure duration not in valid range:"):
+                # timeout=1s because the command should fail immediately.
+                await asyncio.wait_for(spec.expose(duration), 1)
+            self.patch.return_value.AVS_PrepareMeasure.assert_not_called()
+            self.patch.return_value.AVS_Measure.assert_not_called()
+            self.patch.return_value.AVS_PollScan.assert_not_called()
+            self.patch.return_value.AVS_GetScopeData.assert_not_called()
+
+        duration = MIN_DURATION - 1e-9
+        await check_duration_fails(duration)
+        duration = MAX_DURATION + 1e-9
+        await check_duration_fails(duration)
+
+    def test_check_expose_ok(self):
+        duration = 2
+        spec = AvsFiberSpectrograph()
+        self.assertIsNone(spec.check_expose_ok(duration))
+
+        duration = 1e-6
+        self.assertIn("Exposure duration not in valid range: ", spec.check_expose_ok(duration))
+
+        duration = 2
+        spec._expose_task = unittest.mock.NonCallableMock(spec=asyncio.Future,
+                                                          **{"done.return_value": False})
+        self.assertIn("Cannot start new exposure", spec.check_expose_ok(duration))
 
     async def test_stop_exposure(self):
         """Test that `stop_exposure` ends the active `expose`."""
