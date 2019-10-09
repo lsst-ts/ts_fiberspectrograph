@@ -78,7 +78,7 @@ class FiberSpectrographCsc(salobj.BaseCsc):
             if self.summary_state in (salobj.State.ENABLED, salobj.State.DISABLED):
                 if self.device is None:
                     try:
-                        self.device = AvsFiberSpectrograph()
+                        self.device = AvsFiberSpectrograph(log=self.log)
                     except Exception as e:
                         msg = "Failed to connect to fiber spectrograph."
                         self.fault(code=1, report=f"{msg}: {repr(e)}")
