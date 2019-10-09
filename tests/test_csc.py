@@ -20,6 +20,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import asyncio
+import itertools
 import unittest
 import shutil
 
@@ -173,11 +174,10 @@ class TestFiberSpectrographCsc(asynctest.TestCase):
             # Check that out of range durations do not put us in FAULT,
             # and do not change the exposure state.
             duration = 1e-9  # seconds
-            task = asyncio.create_task(harness.remote.cmd_expose.set_start(timeout=STD_TIMEOUT+duration,
-                                                                           duration=duration))
             with salobj.assertRaisesAckError(ack=salobj.SalRetCode.CMD_FAILED,
                                              result_contains="Exposure duration"):
-                await task
+                await harness.remote.cmd_expose.set_start(timeout=STD_TIMEOUT+duration, duration=duration)
+
             # No ExposureState message should have been emitted.
             with self.assertRaises(asyncio.TimeoutError):
                 await harness.remote.evt_exposureState.next(flush=False, timeout=STD_TIMEOUT)
@@ -213,6 +213,26 @@ class TestFiberSpectrographCsc(asynctest.TestCase):
             self.assertIsNone(harness.csc.device)
             # the exposure state should be FAILED after a failed exposure
             await self.check_exposureState(harness.remote, ExposureState.FAILED)
+
+    async def test_expose_timeout(self):
+        """Test that an exposure whose read times out puts us in FAULT and
+        exposureState is set to TIMEOUT.
+        """
+        # Have the PollScan just run forever.
+        self.patch.return_value.AVS_PollScan.side_effect = itertools.repeat(0)
+
+        async with Harness(initial_state=salobj.State.ENABLED) as harness:
+            # Check that we are properly in ENABLED at the start.
+            await self.check_summaryState(harness.remote, salobj.State.ENABLED)
+
+            msg = "Timeout waiting for exposure"
+            duration = 0.1
+            with salobj.assertRaisesAckError(ack=salobj.SalRetCode.CMD_FAILED, result_contains=msg):
+                await harness.remote.cmd_expose.set_start(timeout=STD_TIMEOUT+duration, duration=duration)
+            # The exposure state should be Integrating during the exposure.
+            await self.check_exposureState(harness.remote, ExposureState.INTEGRATING)
+            await self.check_exposureState(harness.remote, ExposureState.TIMEDOUT)
+            await self.check_summaryState(harness.remote, salobj.State.FAULT)
 
     async def test_cancelExposure(self):
         """Test that we can stop an active exposure, and that the exposureState

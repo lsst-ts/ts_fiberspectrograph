@@ -345,9 +345,9 @@ class TestAvsFiberSpectrograph(asynctest.TestCase):
         duration = 0.5  # seconds
         spec = AvsFiberSpectrograph()
 
-        t0 = time.perf_counter()
+        t0 = time.monotonic()
         result = await spec.expose(duration)
-        t1 = time.perf_counter()
+        t1 = time.monotonic()
 
         self.assertGreater(t1 - t0, duration)
         self.patch.return_value.AVS_PrepareMeasure.assert_called_once()
@@ -424,6 +424,24 @@ class TestAvsFiberSpectrograph(asynctest.TestCase):
         self.patch.return_value.AVS_Measure.assert_called_once_with(self.handle, 0, 1)
         self.patch.return_value.AVS_PollScan.assert_called_once_with(self.handle)
 
+    async def test_expose_PollScan_timeout(self):
+        """Test that `expose` raises if it has to wait too long when polling.
+        """
+        duration = 0.5  # seconds
+        # Have the PollScan just run forever.
+        self.patch.return_value.AVS_PollScan.side_effect = itertools.repeat(0)
+
+        spec = AvsFiberSpectrograph()
+        # asyncio.TimeoutError would be raised if the `wait_for` times out,
+        # but the message would not include this text.
+        with self.assertRaisesRegex(asyncio.TimeoutError, "Timeout polling for exposure to be ready"):
+            # Use `wait_for` to keep `expose` from hanging if there is a bug.
+            await asyncio.wait_for(spec.expose(duration), 2)
+        self.patch.return_value.AVS_PrepareMeasure.assert_called_once()
+        self.patch.return_value.AVS_Measure.assert_called_once_with(self.handle, 0, 1)
+        # PollScan will be called a hundred times or so.
+        self.patch.return_value.AVS_PollScan.assert_called()
+
     async def test_expose_GetScopeData_fails(self):
         duration = 0.5  # seconds
         self.patch.return_value.AVS_GetScopeData.side_effect = None
@@ -472,13 +490,13 @@ class TestAvsFiberSpectrograph(asynctest.TestCase):
         duration = 5  # seconds
         spec = AvsFiberSpectrograph()
 
-        t0 = time.perf_counter()
+        t0 = time.monotonic()
         task = asyncio.create_task(spec.expose(duration))
         await asyncio.sleep(0.1)  # give the event loop time to start
         spec.stop_exposure()
         with self.assertRaises(asyncio.CancelledError):
             await task
-        t1 = time.perf_counter()
+        t1 = time.monotonic()
 
         self.assertLess(t1 - t0, 1)  # cancelling the task should make it end much sooner than the duration
         self.patch.return_value.AVS_StopMeasure.assert_called_with(self.handle)
@@ -517,14 +535,14 @@ class TestAvsFiberSpectrograph(asynctest.TestCase):
         self.patch.return_value.AVS_StopMeasure.return_value = AvsReturnCode.ERR_TIMEOUT.value
         spec = AvsFiberSpectrograph()
 
-        t0 = time.perf_counter()
+        t0 = time.monotonic()
         task = asyncio.create_task(spec.expose(duration))
         await asyncio.sleep(0.1)  # give the event loop time to start
         with self.assertRaisesRegex(AvsReturnError, "StopMeasure"):
             spec.stop_exposure()
         with self.assertRaises(asyncio.CancelledError):
             await task
-        t1 = time.perf_counter()
+        t1 = time.monotonic()
 
         self.assertLess(t1 - t0, 1)  # cancelling the task should make it end much sooner than the duration
         self.patch.return_value.AVS_StopMeasure.assert_called_with(self.handle)
@@ -534,13 +552,13 @@ class TestAvsFiberSpectrograph(asynctest.TestCase):
         duration = 5  # seconds
         spec = AvsFiberSpectrograph()
 
-        t0 = time.perf_counter()
+        t0 = time.monotonic()
         task = asyncio.create_task(spec.expose(duration))
         await asyncio.sleep(0.1)  # give the event loop time to start
         spec.disconnect()
         with self.assertRaises(asyncio.CancelledError):
             await task
-        t1 = time.perf_counter()
+        t1 = time.monotonic()
 
         self.assertLess(t1 - t0, 1)  # cancelling the task should make it end much sooner than the duration
         self.patch.return_value.AVS_StopMeasure.assert_called_with(self.handle)
@@ -556,7 +574,7 @@ class TestAvsFiberSpectrograph(asynctest.TestCase):
         spec = AvsFiberSpectrograph()
         self.patch.return_value.AVS_StopMeasure.return_value = AvsReturnCode.ERR_INVALID_PARAMETER.value
 
-        t0 = time.perf_counter()
+        t0 = time.monotonic()
         task = asyncio.create_task(spec.expose(duration))
         await asyncio.sleep(0.1)  # give the event loop time to start
         try:
@@ -566,7 +584,7 @@ class TestAvsFiberSpectrograph(asynctest.TestCase):
             self.fail("disconnect() should not raise an exception, even if `stop_exposure` does.")
         with self.assertRaises(asyncio.CancelledError):
             await task
-        t1 = time.perf_counter()
+        t1 = time.monotonic()
 
         self.assertLess(t1 - t0, 1)  # cancelling the task should make it end much sooner than the duration
         self.patch.return_value.AVS_StopMeasure.assert_called_with(self.handle)

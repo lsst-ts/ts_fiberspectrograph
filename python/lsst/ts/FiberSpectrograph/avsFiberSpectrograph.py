@@ -28,6 +28,7 @@ import dataclasses
 import enum
 import logging
 import struct
+import time
 
 import numpy as np
 
@@ -140,6 +141,11 @@ class AvsFiberSpectrograph:
             self.log.setLevel(logging.DEBUG)
             import sys
             logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
+
+        # How long to wait before we timeout on when polling for new data.
+        # From the vendor docs, readout+transfer should be about 10ms, so we
+        # can make this half a second and still be very safe.
+        self.pollscan_timeout = 0.5  # seconds
 
         # create a "done" future
         self._expose_task = asyncio.Future()
@@ -383,6 +389,9 @@ class AvsFiberSpectrograph:
             readout from the device.
         asyncio.CancelledError
             Raised if the exposure is stopped before it is read out.
+        asyncio.TimeoutError
+            Raised if polling for the exposure to be available for readout
+            does not complete within `self.pollscan_timeout` seconds.
         """
         config = AvsMeasureConfig()
         config.IntegrationTime = duration * 1000  # seconds->milliseconds
@@ -405,14 +414,19 @@ class AvsFiberSpectrograph:
         measure_sleep = asyncio.create_task(asyncio.sleep(duration))
         await measure_sleep
 
+        start_time = time.monotonic()
         data_available = 0
         while data_available != 1:
             self.log.debug("Polling for measurement.")
             data_available = self.libavs.AVS_PollScan(self.handle)
             assert_avs_code(data_available, "PollScan")
+            if (time.monotonic() - start_time) > self.pollscan_timeout:
+                msg = "Timeout polling for exposure to be ready; waited {self.pollscan_timeout} seconds."
+                raise asyncio.TimeoutError(msg)
             # Avantes docs say not to poll too rapidly, or it will overwhelm
-            # the spectrograph CPU. They suggest waiting at least 1 ms.
-            await asyncio.sleep(0.001)
+            # the spectrograph CPU. They suggest waiting at least 1ms;
+            # we'll wait 10ms so that we don't flood the logger.
+            await asyncio.sleep(0.01)
 
         self.log.debug("Reading measured data from spectrograph.")
         time_label = _getUIntPointer()  # NOTE: it's not clear from the docs what this is for
