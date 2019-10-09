@@ -31,7 +31,7 @@ from lsst.ts.FiberSpectrograph import FiberSpectrographCsc
 from lsst.ts.FiberSpectrograph import AvsReturnError, AvsReturnCode
 from lsst.ts.idl.enums.FiberSpectrograph import ExposureState
 
-STD_TIMEOUT = 2  # standard command timeout (sec)
+STD_TIMEOUT = 1  # standard command timeout (sec)
 LONG_TIMEOUT = 20  # timeout for starting SAL components (sec)
 
 
