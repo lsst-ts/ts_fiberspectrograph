@@ -157,8 +157,8 @@ class FiberSpectrographCsc(salobj.BaseCsc):
             raise
         except Exception as e:
             self.evt_exposureState.set_put(status=ExposureState.FAILED)
-            msg = "Failed to take exposure with fiber spectrograph."
-            self.fault(code=20, report=f"{msg}: {repr(e)}")
+            msg = f"Failed to take exposure with fiber spectrograph: {repr(e)}"
+            self.fault(code=20, report=msg)
             raise salobj.ExpectedError(msg)
 
     async def do_cancelExposure(self, data):
