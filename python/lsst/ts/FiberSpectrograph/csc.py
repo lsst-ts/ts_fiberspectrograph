@@ -152,6 +152,11 @@ class FiberSpectrographCsc(salobj.BaseCsc):
             self.evt_exposureState.set_put(status=ExposureState.INTEGRATING)
             wavelength, spectrum = await task
             self.evt_exposureState.set_put(status=ExposureState.DONE)
+        except asyncio.TimeoutError as e:
+            self.evt_exposureState.set_put(status=ExposureState.TIMEDOUT)
+            msg = f"Timeout waiting for exposure: {repr(e)}"
+            self.fault(code=20, report=msg)
+            raise salobj.ExpectedError(msg)
         except asyncio.CancelledError:
             self.evt_exposureState.set_put(status=ExposureState.CANCELLED)
             raise
