@@ -414,13 +414,13 @@ class AvsFiberSpectrograph:
         measure_sleep = asyncio.create_task(asyncio.sleep(duration))
         await measure_sleep
 
-        start_time = time.perf_counter()
+        start_time = time.monotonic()
         data_available = 0
         while data_available != 1:
             self.log.debug("Polling for measurement.")
             data_available = self.libavs.AVS_PollScan(self.handle)
             assert_avs_code(data_available, "PollScan")
-            if (time.perf_counter() - start_time) > self.pollscan_timeout:
+            if (time.monotonic() - start_time) > self.pollscan_timeout:
                 msg = "Timeout polling for exposure to be ready; waited {self.pollscan_timeout} seconds."
                 raise asyncio.TimeoutError(msg)
             # Avantes docs say not to poll too rapidly, or it will overwhelm
