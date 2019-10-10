@@ -30,8 +30,9 @@ import asynctest
 
 from lsst.ts import salobj
 from lsst.ts.FiberSpectrograph import AvsSimulator
-from lsst.ts.FiberSpectrograph import FiberSpectrographCsc
+from lsst.ts.FiberSpectrograph import FiberSpectrographCsc, serial_numbers
 from lsst.ts.FiberSpectrograph import AvsReturnError, AvsReturnCode
+from lsst.ts.FiberSpectrograph import AvsDeviceStatus, AvsIdentity
 from lsst.ts.idl.enums.FiberSpectrograph import ExposureState
 
 STD_TIMEOUT = 1  # standard command timeout (sec)
@@ -41,13 +42,13 @@ LONG_TIMEOUT = 20  # timeout for starting SAL components (sec)
 class Harness:
     """An configurable async context manager for setting up and starting a CSC,
     and any other pieces it needs to talk to."""
-    def __init__(self, initial_state, outpath=None):
+    def __init__(self, initial_state, index=-1, outpath=None):
         self.csc = FiberSpectrographCsc(
             initial_state=initial_state,
             initial_simulation_mode=0,
-            index=0,  # index 0 is the testing index
+            index=index,
             outpath=outpath)
-        self.remote = salobj.Remote(domain=self.csc.domain, name="FiberSpectrograph", index=0)
+        self.remote = salobj.Remote(domain=self.csc.domain, name="FiberSpectrograph", index=index)
 
     async def __aenter__(self):
         await self.csc.start_task
@@ -140,6 +141,29 @@ class TestFiberSpectrographCsc(asynctest.TestCase):
             # garbage collection, the latter is not guaranteed to have happened
             # immediately).
             self.patch.return_value.AVS_Done.assert_called()
+
+    async def test_connect_by_index(self):
+        """Test that changing the index number changes the serial number
+        that we attempt to connect to.
+        """
+        # Mock two connected devices (we will connect to the second).
+        n_devices = 2
+        index = 3
+        serial_number = serial_numbers[index]  # this corresponds to ATBroad
+        id1 = AvsIdentity(bytes(str(serial_number), "ascii"),
+                          b"Fake Spectrograph 2",
+                          AvsDeviceStatus.USB_AVAILABLE.value)
+
+        def mock_getList(a_listSize, a_pRequiredSize, a_pList):
+            """Pretend that two devices are connected."""
+            a_pList[:] = [self.patcher.id0, id1]
+            return n_devices
+        self.patch.return_value.AVS_GetList.side_effect = mock_getList
+        self.patch.return_value.AVS_UpdateUSBDevices.return_value = n_devices
+
+        async with Harness(initial_state=salobj.State.DISABLED, index=index) as harness:
+            await self.check_summaryState(harness.remote, salobj.State.DISABLED)
+            self.assertEqual(harness.device.device, id1)
 
     async def test_enable_fails(self):
         """Test that exceptions raised when connecting cause a fault when
@@ -337,7 +361,7 @@ class TestFiberSpectrographCsc(asynctest.TestCase):
         """Test running the CSC commandline script, by checking that it starts
         in STANDBY and can be commanded to exit.
         """
-        index = 0
+        index = -1
         exe_name = "run_FiberSpectrograph.py"
         exe_path = shutil.which(exe_name)
         if exe_path is None:
