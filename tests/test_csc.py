@@ -163,7 +163,7 @@ class TestFiberSpectrographCsc(asynctest.TestCase):
 
         async with Harness(initial_state=salobj.State.DISABLED, index=index) as harness:
             await self.check_summaryState(harness.remote, salobj.State.DISABLED)
-            self.assertEqual(harness.device.device, id1)
+            self.assertEqual(harness.csc.device.device, id1)
 
     async def test_enable_fails(self):
         """Test that exceptions raised when connecting cause a fault when
@@ -214,8 +214,8 @@ class TestFiberSpectrographCsc(asynctest.TestCase):
                 duration = 1e-9  # seconds
                 with salobj.assertRaisesAckError(ack=salobj.SalRetCode.CMD_FAILED,
                                                  result_contains="Exposure duration"):
-                    await harness.remote.cmd_expose.set_start(timeout=STD_TIMEOUT+duration, duration=duration)
-
+                    await asyncio.create_task(harness.remote.cmd_expose.set_start(timeout=STD_TIMEOUT,
+                                                                                  duration=duration))
                 # No ExposureState message should have been emitted.
                 with self.assertRaises(asyncio.TimeoutError):
                     await harness.remote.evt_exposureState.next(flush=False, timeout=STD_TIMEOUT)
