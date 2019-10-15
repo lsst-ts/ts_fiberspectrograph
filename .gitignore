@@ -18,3 +18,7 @@ pytest_session.txt
 .cache/
 .pytest_cache
 .coverage
+
+# These get produced by opensplice when we are running the CSC.
+ospl-error.log
+ospl-info.log

@@ -21,8 +21,10 @@
 
 import asyncio
 import itertools
-import unittest
+import os
 import shutil
+import tempfile
+import unittest
 
 import asynctest
 
@@ -39,10 +41,12 @@ LONG_TIMEOUT = 20  # timeout for starting SAL components (sec)
 class Harness:
     """An configurable async context manager for setting up and starting a CSC,
     and any other pieces it needs to talk to."""
-    def __init__(self, initial_state, config_dir=None):
+    def __init__(self, initial_state, outpath=None):
         self.csc = FiberSpectrographCsc(
             initial_state=initial_state,
-            initial_simulation_mode=0)
+            initial_simulation_mode=0,
+            index=0,  # index 0 is the testing index
+            outpath=outpath)
         self.remote = salobj.Remote(domain=self.csc.domain, name="FiberSpectrograph", index=0)
 
     async def __aenter__(self):
@@ -159,31 +163,41 @@ class TestFiberSpectrographCsc(asynctest.TestCase):
         """Test that we can take an exposure and that appropriate events are
         emitted.
         """
-        async with Harness(initial_state=salobj.State.ENABLED) as harness:
-            # Check that we are properly in ENABLED at the start
-            await self.check_summaryState(harness.remote, salobj.State.ENABLED)
+        with tempfile.TemporaryDirectory() as path:
+            async with Harness(initial_state=salobj.State.ENABLED, outpath=path) as harness:
+                # Check that we are properly in ENABLED at the start
+                await self.check_summaryState(harness.remote, salobj.State.ENABLED)
 
-            duration = 2  # seconds
-            task = asyncio.create_task(harness.remote.cmd_expose.set_start(timeout=STD_TIMEOUT+duration,
-                                                                           duration=duration))
-            await self.check_exposureState(harness.remote, ExposureState.INTEGRATING)
-            # Wait for the exposure to finish.
-            await task
-            await self.check_exposureState(harness.remote, ExposureState.DONE)
+                duration = 2  # seconds
+                task = asyncio.create_task(harness.remote.cmd_expose.set_start(timeout=STD_TIMEOUT+duration,
+                                                                               duration=duration))
+                await self.check_exposureState(harness.remote, ExposureState.INTEGRATING)
+                # Wait for the exposure to finish.
+                await task
+                await self.check_exposureState(harness.remote, ExposureState.DONE)
 
-            # Check that out of range durations do not put us in FAULT,
-            # and do not change the exposure state.
-            duration = 1e-9  # seconds
-            with salobj.assertRaisesAckError(ack=salobj.SalRetCode.CMD_FAILED,
-                                             result_contains="Exposure duration"):
-                await harness.remote.cmd_expose.set_start(timeout=STD_TIMEOUT+duration, duration=duration)
+                # Check that the path appears in the output URI.
+                event = await harness.remote.evt_largeFileObjectAvailable.next(flush=False,
+                                                                               timeout=STD_TIMEOUT)
+                self.assertIn(path, event.url)
+                # Check that a file was written.
+                # TODO: change this to a `spulec/moto`-based unittest of the
+                # s3 LFA API once that is available.
+                self.assertTrue(os.path.exists(event.url))
 
-            # No ExposureState message should have been emitted.
-            with self.assertRaises(asyncio.TimeoutError):
-                await harness.remote.evt_exposureState.next(flush=False, timeout=STD_TIMEOUT)
-            # We should not have left ENABLED.
-            with self.assertRaises(asyncio.TimeoutError):
-                await harness.remote.evt_exposureState.next(flush=False, timeout=STD_TIMEOUT)
+                # Check that out of range durations do not put us in FAULT,
+                # and do not change the exposure state.
+                duration = 1e-9  # seconds
+                with salobj.assertRaisesAckError(ack=salobj.SalRetCode.CMD_FAILED,
+                                                 result_contains="Exposure duration"):
+                    await harness.remote.cmd_expose.set_start(timeout=STD_TIMEOUT+duration, duration=duration)
+
+                # No ExposureState message should have been emitted.
+                with self.assertRaises(asyncio.TimeoutError):
+                    await harness.remote.evt_exposureState.next(flush=False, timeout=STD_TIMEOUT)
+                # We should not have left ENABLED.
+                with self.assertRaises(asyncio.TimeoutError):
+                    await harness.remote.evt_exposureState.next(flush=False, timeout=STD_TIMEOUT)
 
     async def test_expose_fails(self):
         """Test that a failed exposure puts us in the FAULT state, which will
@@ -323,7 +337,7 @@ class TestFiberSpectrographCsc(asynctest.TestCase):
         """Test running the CSC commandline script, by checking that it starts
         in STANDBY and can be commanded to exit.
         """
-        index = 1
+        index = 0
         exe_name = "run_FiberSpectrograph.py"
         exe_path = shutil.which(exe_name)
         if exe_path is None:
