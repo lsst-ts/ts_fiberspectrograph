@@ -31,7 +31,6 @@ import struct
 import time
 
 import numpy as np
-
 # Fully-qualified path to the vendor-provided libavs AvaSpec library.
 # If installed via the vendor packages, it will be in `/usr/local/lib`.
 LIBRARY_PATH = "/usr/local/lib/libavs.so.0.2.0"
@@ -121,7 +120,7 @@ class AvsFiberSpectrograph:
         Raised if there is no device with the specified serial number.
     RuntimeError
         * Raised if multiple devices are connected and no serial number
-        was specified.
+          was specified.
         * Raised if there is an error connecting to the requested device.
     """
     handle = None
@@ -229,8 +228,8 @@ class AvsFiberSpectrograph:
         If the attempt to disconnect fails, log an error message but still
         try to release the AVS library port.
 
-        Note
-        ----
+        Notes
+        -----
         This method should not raise.
         """
         try:
