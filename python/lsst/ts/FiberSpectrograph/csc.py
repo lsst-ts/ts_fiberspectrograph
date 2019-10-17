@@ -19,7 +19,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = ["FiberSpectrographCsc"]
+__all__ = ["FiberSpectrographCsc", "serial_numbers"]
 
 import asyncio
 
@@ -33,7 +33,11 @@ from lsst.ts.idl.enums.FiberSpectrograph import ExposureState
 from lsst.ts import salobj
 
 # The instrument names to be accessed by index number.
-instruments = ["TestSpectrograph"]
+instruments = {-1: 'unknown', 1: 'MTBlue', 2: 'MTRed', 3: 'ATBroad'}
+
+# The serial numbers of the above instruments.
+# index=-1 means "use the only connected spectrograph."
+serial_numbers = {-1: None, 1: '1606192U1', 2: '1606190U1', 3: '1606191U1'}
 
 
 class FiberSpectrographCsc(salobj.BaseCsc):
@@ -51,6 +55,11 @@ class FiberSpectrographCsc(salobj.BaseCsc):
     outpath : `str`, optional
         Write output files to this path.
         TODO: this is temporary until we have a working LFA.
+    index : `int`
+        The SAL index; this determines which spectrograph to connect to.
+        See the ``FiberSpectrograph`` Enumeration in
+        ``ts_xml/sal_interfaces/SALSubsystems.xml`` for index:name mapping.
+        index=-1 means use the only connected spectrograph.
 
     Notes
     -----
@@ -68,21 +77,20 @@ class FiberSpectrographCsc(salobj.BaseCsc):
     * 20: If there is an error taking an exposure.
     """
     def __init__(self, initial_state=salobj.State.STANDBY,
-                 initial_simulation_mode=0, index=0,
-                 outpath=None):
+                 initial_simulation_mode=0,
+                 outpath=None, *, index):
         self._simulator = AvsSimulator()
         self.device = None
 
-        self.data_manager = dataManager.DataManager(instrument=instruments[index],
+        self.serial_number = serial_numbers[index]
+        self.name = instruments[index]
+
+        self.data_manager = dataManager.DataManager(instrument=self.name,
                                                     origin=type(self).__name__,
                                                     outpath=outpath)
         self.telemetry_loop_task = salobj.make_done_future()
         self.telemetry_interval = 10  # seconds between telemetry output
 
-        # TODO DM-21437: we will have to do something with the index here,
-        # once we figure out what the various spectrograph indexes are.
-        # For example, we'll probably use the index to determine the
-        # spectrograph serial number to connect to.
         super().__init__("FiberSpectrograph", index=index,
                          initial_state=initial_state, initial_simulation_mode=initial_simulation_mode)
 
@@ -92,7 +100,7 @@ class FiberSpectrographCsc(salobj.BaseCsc):
             if self.summary_state in (salobj.State.ENABLED, salobj.State.DISABLED):
                 if self.device is None:
                     try:
-                        self.device = AvsFiberSpectrograph(log=self.log)
+                        self.device = AvsFiberSpectrograph(serial_number=self.serial_number, log=self.log)
                     except Exception as e:
                         msg = "Failed to connect to fiber spectrograph."
                         self.fault(code=1, report=f"{msg}: {repr(e)}")
