@@ -30,6 +30,8 @@ As an RAII class, a successful instantiation of the class means that the device 
 The CSC manages this via its states: transitioning to the DISABLED state creates a device connection, while transitioning to any non-ENABLED state closes the connection.
 
 Multiple devices can be connected to a single computer (however, see caveats_), with the desired device determined by the index number of the CSC (see SALSubsystems.xml for the index->device mapping).
+The index ``-1`` is special, as a CSC with that index will connect to the only attached USB spectrograph (if multiple devices are attached, ``index=-1`` will raise an error).
+This can be useful for bench testing where different devices are plugged in and removed while a single CSC is running.
 
 .. _exposures:
 
