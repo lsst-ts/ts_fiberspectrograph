@@ -117,20 +117,20 @@ class TestDataManager(unittest.TestCase):
             output = manager(self.data)
             expected_path = os.path.join(path, "TestBlue_1999-01-01T00:00:00.000.fits")
             self.assertEqual(output, expected_path)
-            hdulist = astropy.io.fits.open(output, checksum=True)
-            self.check_header(hdulist[0].header)
-            np.testing.assert_array_equal(hdulist[0].data, self.spectrum)
-            # Want first row
-            wavelengths = QTable.read(hdulist[1])['wavelength'][0]
-            # This will be 2D from the table so force to 1D for comparison
-            self.assertEqual(wavelengths.shape, (self.wavelength.size, 1))
-            wavelengths = wavelengths.reshape(wavelengths.size)
-            np.testing.assert_array_equal(wavelengths, self.wavelength)
-            # Ensure the checksums are written, but let astropy verify them.
-            self.assertIn('CHECKSUM', hdulist[0].header)
-            self.assertIn('DATASUM', hdulist[0].header)
-            self.assertIn('CHECKSUM', hdulist[1].header)
-            self.assertIn('DATASUM', hdulist[1].header)
+            with astropy.io.fits.open(output, checksum=True) as hdulist:
+                self.check_header(hdulist[0].header)
+                np.testing.assert_array_equal(hdulist[0].data, self.spectrum)
+                # Want first row
+                wavelengths = QTable.read(hdulist[1])['wavelength'][0]
+                # This will be 2D from the table so force to 1D for comparison
+                self.assertEqual(wavelengths.shape, (self.wavelength.size, 1))
+                wavelengths = wavelengths.reshape(wavelengths.size)
+                np.testing.assert_array_equal(wavelengths, self.wavelength)
+                # Ensure the checksums are written, but let astropy verify them
+                self.assertIn('CHECKSUM', hdulist[0].header)
+                self.assertIn('DATASUM', hdulist[0].header)
+                self.assertIn('CHECKSUM', hdulist[1].header)
+                self.assertIn('DATASUM', hdulist[1].header)
 
 
 if __name__ == "__main__":
