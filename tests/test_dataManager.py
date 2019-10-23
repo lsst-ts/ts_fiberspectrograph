@@ -23,7 +23,7 @@ import os.path
 import tempfile
 import unittest
 
-from astropy.table import Table
+from astropy.table import QTable
 import astropy.time
 import astropy.units as u
 import numpy as np
@@ -95,7 +95,12 @@ class TestDataManager(unittest.TestCase):
     def test_make_wavelength_hdu(self):
         manager = DataManager(instrument=self.instrument, origin=self.origin)
         hdu = manager.make_wavelength_hdu(self.data)
-        np.testing.assert_array_equal(Table.read(hdu)['wavelength'], self.wavelength)
+        # Need first wavelength from first row
+        wavelengths = QTable.read(hdu)['wavelength'][0]
+        # Should be 2D
+        self.assertEqual(wavelengths.shape, (self.wavelength.size, 1))
+        wavelengths = wavelengths.reshape(wavelengths.size)
+        np.testing.assert_array_equal(wavelengths, self.wavelength)
         # The wavelength data should not be a Primary HDU.
         self.assertNotIsInstance(hdu, astropy.io.fits.PrimaryHDU)
 
@@ -115,7 +120,12 @@ class TestDataManager(unittest.TestCase):
             hdulist = astropy.io.fits.open(output, checksum=True)
             self.check_header(hdulist[0].header)
             np.testing.assert_array_equal(hdulist[0].data, self.spectrum)
-            np.testing.assert_array_equal(Table.read(hdulist[1])['wavelength'], self.wavelength)
+            # Want first row
+            wavelengths = QTable.read(hdulist[1])['wavelength'][0]
+            # This will be 2D from the table so force to 1D for comparison
+            self.assertEqual(wavelengths.shape, (self.wavelength.size, 1))
+            wavelengths = wavelengths.reshape(wavelengths.size)
+            np.testing.assert_array_equal(wavelengths, self.wavelength)
             # Ensure the checksums are written, but let astropy verify them.
             self.assertIn('CHECKSUM', hdulist[0].header)
             self.assertIn('DATASUM', hdulist[0].header)

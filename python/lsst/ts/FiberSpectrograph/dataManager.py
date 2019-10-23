@@ -124,6 +124,23 @@ class DataManager:
         hdr['SOURCE'] = data.source
         hdr['TEMP_SET'] = data.temperature_setpoint.to_value(u.deg_C)
         hdr['CCDTEMP'] = data.temperature.to_value(u.deg_C)
+
+        # WCS headers - Use -TAB WCS definition
+        wcs_cards = [
+            "WCSAXES =                    1 / Number of WCS axes",
+            "CRPIX1  =                  0.0 / Reference pixel on axis 1",
+            "CRVAL1  =                  0.0 / Value at ref. pixel on axis 1",
+            "CNAME1  = 'Wavelength'         / Axis name for labeling purposes",
+            "CTYPE1  = 'WAVE-TAB'           / Wavelength axis by lookup table",
+            "CDELT1  =                  1.0 / Pixel size on axis 1",
+            "CUNIT1  = 'nm      '           / Units for axis 1",
+            "PV1_1   =                    1 / EXTVER   of bintable extension for -TAB arrays",
+            "PS1_0   = 'WCS-TAB '           / EXTNAME  of bintable extension for -TAB arrays",
+            "PS1_1   = 'wavelength'         / Wavelength coordinate array"
+        ]
+        for c in wcs_cards:
+            hdr.append(astropy.io.fits.Card.fromstring(c))
+
         return hdr
 
     def make_primary_hdu(self, data):
@@ -135,6 +152,21 @@ class DataManager:
     def make_wavelength_hdu(self, data):
         """Return the wavelength HDU built from SpectrographData."""
 
-        table = astropy.table.QTable([data.wavelength], names=["wavelength"])
-        hdu = astropy.io.fits.BinTableHDU(table)
+        # The wavelength array must be 2D (N, 1) in numpy but (1, N) in FITS
+        wavelength = data.wavelength.reshape([data.wavelength.size, 1])
+
+        # Create a Table. It will be a single element table
+        table = astropy.table.Table()
+
+        # Create the wavelength column
+        # Create the column explicitly since it is easier to ensure the
+        # shape this way.
+        wavecol = astropy.table.Column([wavelength], unit=wavelength.unit.name)
+
+        # The column name must match the PS1_1 entry from the primary HDU
+        table["wavelength"] = wavecol
+
+        # The name MUST match the value of PS1_0 and the version MUST
+        # match the value of PV1_1
+        hdu = astropy.io.fits.BinTableHDU(table, name="WCS-TAB", ver=1)
         return hdu
