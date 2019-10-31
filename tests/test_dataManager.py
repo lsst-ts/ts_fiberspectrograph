@@ -77,6 +77,13 @@ class TestDataManager(unittest.TestCase):
         for key, value in self.expected_header.items():
             self.assertEqual(header[key], value, msg=f"Mismatched key: {key}")
 
+    def check_wavelength_data(self, wavelengths):
+        """Check that the wavelength data read from the file is correct."""
+        # This will be 2D from the table so force to 1D for comparison
+        self.assertEqual(wavelengths.shape, (self.wavelength.size, 1))
+        wavelengths = wavelengths.reshape(wavelengths.size)
+        np.testing.assert_array_equal(wavelengths, self.wavelength)
+
     def test_make_fits_header(self):
         manager = DataManager(instrument=self.instrument, origin=self.origin)
 
@@ -97,10 +104,7 @@ class TestDataManager(unittest.TestCase):
         hdu = manager.make_wavelength_hdu(self.data)
         # Need first wavelength from first row
         wavelengths = QTable.read(hdu)['wavelength'][0]
-        # Should be 2D
-        self.assertEqual(wavelengths.shape, (self.wavelength.size, 1))
-        wavelengths = wavelengths.reshape(wavelengths.size)
-        np.testing.assert_array_equal(wavelengths, self.wavelength)
+        self.check_wavelength_data(wavelengths)
         # The wavelength data should not be a Primary HDU.
         self.assertNotIsInstance(hdu, astropy.io.fits.PrimaryHDU)
 
@@ -122,10 +126,7 @@ class TestDataManager(unittest.TestCase):
                 np.testing.assert_array_equal(hdulist[0].data, self.spectrum)
                 # Want first row
                 wavelengths = QTable.read(hdulist[1])['wavelength'][0]
-                # This will be 2D from the table so force to 1D for comparison
-                self.assertEqual(wavelengths.shape, (self.wavelength.size, 1))
-                wavelengths = wavelengths.reshape(wavelengths.size)
-                np.testing.assert_array_equal(wavelengths, self.wavelength)
+                self.check_wavelength_data(wavelengths)
                 # Ensure the checksums are written, but let astropy verify them
                 self.assertIn('CHECKSUM', hdulist[0].header)
                 self.assertIn('DATASUM', hdulist[0].header)
