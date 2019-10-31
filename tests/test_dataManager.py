@@ -129,14 +129,24 @@ class TestDataManager(unittest.TestCase):
             with astropy.io.fits.open(output, checksum=True) as hdulist:
                 self.check_header(hdulist[0].header)
                 np.testing.assert_array_equal(hdulist[0].data, self.spectrum)
-                # Want first row
-                wavelengths = QTable.read(hdulist[1])['wavelength'][0]
-                self.check_wavelength_data(wavelengths)
+
                 # Ensure the checksums are written, but let astropy verify them
                 self.assertIn('CHECKSUM', hdulist[0].header)
                 self.assertIn('DATASUM', hdulist[0].header)
                 self.assertIn('CHECKSUM', hdulist[1].header)
                 self.assertIn('DATASUM', hdulist[1].header)
+
+                # Check that the headers are consistent with WCS -TAB
+                primary_header = hdulist[0].header
+                self.assertEqual(primary_header['CTYPE1'], "WAVE-TAB")
+                wcs_tab_name = primary_header["PS1_0"]
+                wcs_tab_extver = primary_header["PV1_1"]
+                wave_col_name = primary_header["PS1_1"]
+                wave_table = QTable.read(hdulist[wcs_tab_name, wcs_tab_extver])
+                self.assertEqual(len(wave_table), 1)
+                # Only one row so select that one explicitly
+                wavelengths = wave_table[wave_col_name][0]
+                self.check_wavelength_data(wavelengths)
 
 
 if __name__ == "__main__":
