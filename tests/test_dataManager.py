@@ -70,7 +70,12 @@ class TestDataManager(unittest.TestCase):
                                 'IMGTYPE': self.type,
                                 'SOURCE': self.source,
                                 'TEMP_SET': self.temperature_setpoint.to_value(u.deg_C),
-                                'CCDTEMP': self.temperature.to_value(u.deg_C,)}
+                                'CCDTEMP': self.temperature.to_value(u.deg_C,),
+                                # WCS headers
+                                'CTYPE1': 'WAVE-TAB',
+                                'PS1_0': 'WCS-TAB',
+                                'PS1_1': 'wavelength',
+                                'CUNIT1': 'nm'}
 
     def check_header(self, header):
         """Check that all expected keys are in the header."""
