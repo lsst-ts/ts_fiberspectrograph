@@ -95,6 +95,31 @@ Some particular quirks of working with the system:
 * Using multiple devices attached to the same computer should work, so long as each device is connected to via a specific serial number, as is done with the three indexes in the CSC.
   If no serial number is specified, the controller class will connect to a single attached device, but will fail at instantiation if multiple devices are attached.
 
+.. _data_format:
+
+Data Format
+-----------
+
+Data files written by this CSC are in FITS format with the data stored as a 1-D spectrum in the primary HDU.
+The wavelength information is stored using the FITS ``-TAB`` standard and is stored in a binary table with name ``WCS-TAB``.
+At this time Astropy does not natively support this WCS but the data and wavelength information can be read using the following code:
+
+.. code-block:: python
+
+   with astropy.io.fits.open(filename, checksum=True) as hdulist:
+       spectrum = hdulist[0].data
+
+       # Read WCS information from header
+       primary_header = hdulist[0].header
+       wcs_tab_name = primary_header["PS1_0"]
+       wcs_tab_extver = primary_header["PV1_1"]
+       wave_col_name = primary_header["PS1_1"]
+       wave_table = astropy.table.QTable.read(hdulist[wcs_tab_name, wcs_tab_extver])
+       # Only one row so select that one explicitly
+       wavelengths = wave_table[wave_col_name][0]
+       # Force 1,N array to shape N
+       wavelengths = wavelengths.reshape(wavelengths.size)
+
 .. _lsst.ts.FiberSpectrograph-contributing:
 
 Contributing
