@@ -30,6 +30,7 @@ import logging
 import struct
 import time
 
+import astropy.units as u
 import numpy as np
 # Fully-qualified path to the vendor-provided libavs AvaSpec library.
 # If installed via the vendor packages, it will be in `/usr/local/lib`.
@@ -342,7 +343,7 @@ class AvsFiberSpectrograph:
 
         Returns
         -------
-        wavelength : `np.ndarray`
+        wavelength : `astropy.units.Quantity`
             The 1-d wavelength solution provided by the instrument.
         spectrum : `numpy.ndarray`
             The 1-d spectrum measured by the instrument.
@@ -376,7 +377,7 @@ class AvsFiberSpectrograph:
 
         Returns
         -------
-        wavelength : `np.ndarray`
+        wavelength : `astropy.units.Quantity`
             The 1-d wavelength solution provided by the instrument.
         spectrum : `numpy.ndarray`
             The 1-d spectrum measured by the instrument.
@@ -432,7 +433,7 @@ class AvsFiberSpectrograph:
         spectrum = (ctypes.c_double * self._n_pixels)()
         code = self.libavs.AVS_GetScopeData(self.handle, time_label, spectrum)
         assert_avs_code(code, "GetScopeData")
-        return np.array(wavelength), np.array(spectrum)
+        return np.array(wavelength) * u.nm, np.array(spectrum)
 
     def stop_exposure(self):
         """Cancel a currently running exposure and reset the spectrograph.
