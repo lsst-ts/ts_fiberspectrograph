@@ -23,7 +23,7 @@ import os.path
 import tempfile
 import unittest
 
-from astropy.table import Table
+from astropy.table import QTable
 import astropy.time
 import astropy.units as u
 import numpy as np
@@ -70,12 +70,24 @@ class TestDataManager(unittest.TestCase):
                                 'IMGTYPE': self.type,
                                 'SOURCE': self.source,
                                 'TEMP_SET': self.temperature_setpoint.to_value(u.deg_C),
-                                'CCDTEMP': self.temperature.to_value(u.deg_C,)}
+                                'CCDTEMP': self.temperature.to_value(u.deg_C,),
+                                # WCS headers
+                                'CTYPE1': 'WAVE-TAB',
+                                'PS1_0': 'WCS-TAB',
+                                'PS1_1': 'wavelength',
+                                'CUNIT1': 'nm'}
 
     def check_header(self, header):
         """Check that all expected keys are in the header."""
         for key, value in self.expected_header.items():
             self.assertEqual(header[key], value, msg=f"Mismatched key: {key}")
+
+    def check_wavelength_data(self, wavelengths):
+        """Check that the wavelength data read from the file is correct."""
+        # This will be 2D from the table so force to 1D for comparison
+        self.assertEqual(wavelengths.shape, (self.wavelength.size, 1))
+        wavelengths = wavelengths.reshape(wavelengths.size)
+        np.testing.assert_array_equal(wavelengths, self.wavelength)
 
     def test_make_fits_header(self):
         manager = DataManager(instrument=self.instrument, origin=self.origin)
@@ -95,7 +107,9 @@ class TestDataManager(unittest.TestCase):
     def test_make_wavelength_hdu(self):
         manager = DataManager(instrument=self.instrument, origin=self.origin)
         hdu = manager.make_wavelength_hdu(self.data)
-        np.testing.assert_array_equal(Table.read(hdu)['wavelength'], self.wavelength)
+        # Need first wavelength from first row
+        wavelengths = QTable.read(hdu)['wavelength'][0]
+        self.check_wavelength_data(wavelengths)
         # The wavelength data should not be a Primary HDU.
         self.assertNotIsInstance(hdu, astropy.io.fits.PrimaryHDU)
 
@@ -112,15 +126,27 @@ class TestDataManager(unittest.TestCase):
             output = manager(self.data)
             expected_path = os.path.join(path, "TestBlue_1999-01-01T00:00:00.000.fits")
             self.assertEqual(output, expected_path)
-            hdulist = astropy.io.fits.open(output, checksum=True)
-            self.check_header(hdulist[0].header)
-            np.testing.assert_array_equal(hdulist[0].data, self.spectrum)
-            np.testing.assert_array_equal(Table.read(hdulist[1])['wavelength'], self.wavelength)
-            # Ensure the checksums are written, but let astropy verify them.
-            self.assertIn('CHECKSUM', hdulist[0].header)
-            self.assertIn('DATASUM', hdulist[0].header)
-            self.assertIn('CHECKSUM', hdulist[1].header)
-            self.assertIn('DATASUM', hdulist[1].header)
+            with astropy.io.fits.open(output, checksum=True) as hdulist:
+                self.check_header(hdulist[0].header)
+                np.testing.assert_array_equal(hdulist[0].data, self.spectrum)
+
+                # Ensure the checksums are written, but let astropy verify them
+                self.assertIn('CHECKSUM', hdulist[0].header)
+                self.assertIn('DATASUM', hdulist[0].header)
+                self.assertIn('CHECKSUM', hdulist[1].header)
+                self.assertIn('DATASUM', hdulist[1].header)
+
+                # Check that the headers are consistent with WCS -TAB
+                primary_header = hdulist[0].header
+                self.assertEqual(primary_header['CTYPE1'], "WAVE-TAB")
+                wcs_tab_name = primary_header["PS1_0"]
+                wcs_tab_extver = primary_header["PV1_1"]
+                wave_col_name = primary_header["PS1_1"]
+                wave_table = QTable.read(hdulist[wcs_tab_name, wcs_tab_extver])
+                self.assertEqual(len(wave_table), 1)
+                # Only one row so select that one explicitly
+                wavelengths = wave_table[wave_col_name][0]
+                self.check_wavelength_data(wavelengths)
 
 
 if __name__ == "__main__":

@@ -30,6 +30,7 @@ import unittest
 import unittest.mock
 
 import asynctest
+import astropy.units as u
 import numpy as np
 
 from lsst.ts.FiberSpectrograph import AvsSimulator
@@ -358,7 +359,7 @@ class TestAvsFiberSpectrograph(asynctest.TestCase):
         self.assertEqual(self.patcher.measure_config_sent.NrAverages, 1)
         self.patch.return_value.AVS_Measure.assert_called_once_with(self.handle, 0, 1)
         self.assertEqual(self.patch.return_value.AVS_PollScan.call_count, 4)
-        np.testing.assert_array_equal(result[0], self.wavelength)
+        np.testing.assert_array_equal(result[0].to_value(u.nm), self.wavelength)
         np.testing.assert_array_equal(result[1], self.spectrum)
 
     async def test_expose_raises_if_active_exposure(self):
