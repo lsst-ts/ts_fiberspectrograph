@@ -86,7 +86,7 @@ class TestDataManager(unittest.TestCase):
         """Check that the wavelength data read from the file is correct."""
         # This will be 2D from the table so force to 1D for comparison
         self.assertEqual(wavelengths.shape, (self.wavelength.size, 1))
-        wavelengths = wavelengths.reshape(wavelengths.size)
+        wavelengths = wavelengths.flatten()
         np.testing.assert_array_equal(wavelengths, self.wavelength)
 
     def test_make_fits_header(self):

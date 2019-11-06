@@ -118,7 +118,7 @@ At this time Astropy does not natively support this WCS but the data and wavelen
        # Only one row so select that one explicitly
        wavelengths = wave_table[wave_col_name][0]
        # Force 1,N array to shape N
-       wavelengths = wavelengths.reshape(wavelengths.size)
+       wavelengths = wavelengths.flatten()
 
 .. _lsst.ts.FiberSpectrograph-contributing:
 
