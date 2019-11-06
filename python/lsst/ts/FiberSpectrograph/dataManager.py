@@ -76,6 +76,14 @@ class DataManager:
         **WARNING**: this argument will be removed once the API for writing
         to the LFA becomes available in salobj; do not rely on it.
     """
+
+    wcs_table_name = "WCS-TAB"
+    """Name of the table containing the wavelength WCS (EXTNAME)."""
+    wcs_table_ver = 1
+    """WCS table version (EXTVER)."""
+    wcs_column_name = "wavelength"
+    """Name of the table column containing the wavelength information."""
+
     def __init__(self, instrument, origin, outpath=None):
         self.instrument = instrument
         self.origin = origin
@@ -133,10 +141,10 @@ class DataManager:
             "CNAME1  = 'Wavelength'         / Axis name for labeling purposes",
             "CTYPE1  = 'WAVE-TAB'           / Wavelength axis by lookup table",
             "CDELT1  =                  1.0 / Pixel size on axis 1",
-            "CUNIT1  = 'nm      '           / Units for axis 1",
-            "PV1_1   =                    1 / EXTVER   of bintable extension for -TAB arrays",
-            "PS1_0   = 'WCS-TAB '           / EXTNAME  of bintable extension for -TAB arrays",
-            "PS1_1   = 'wavelength'         / Wavelength coordinate array"
+            f"CUNIT1  = '{data.wavelength.unit.name:8s}'           / Units for axis 1",
+            f"PV1_1   = {self.wcs_table_ver:20d} / EXTVER  of bintable extension for -TAB arrays",
+            f"PS1_0   = '{self.wcs_table_name:8s}'           / EXTNAME of bintable extension for -TAB arrays",
+            f"PS1_1   = '{self.wcs_column_name:8s}'         / Wavelength coordinate array"
         ]
         for c in wcs_cards:
             hdr.append(astropy.io.fits.Card.fromstring(c))
@@ -164,9 +172,9 @@ class DataManager:
         wavecol = astropy.table.Column([wavelength], unit=wavelength.unit.name)
 
         # The column name must match the PS1_1 entry from the primary HDU
-        table["wavelength"] = wavecol
+        table[self.wcs_column_name] = wavecol
 
         # The name MUST match the value of PS1_0 and the version MUST
         # match the value of PV1_1
-        hdu = astropy.io.fits.BinTableHDU(table, name="WCS-TAB", ver=1)
+        hdu = astropy.io.fits.BinTableHDU(table, name=self.wcs_table_name, ver=1)
         return hdu
