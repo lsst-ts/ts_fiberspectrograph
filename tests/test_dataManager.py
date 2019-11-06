@@ -82,12 +82,18 @@ class TestDataManager(unittest.TestCase):
         for key, value in self.expected_header.items():
             self.assertEqual(header[key], value, msg=f"Mismatched key: {key}")
 
-    def check_wavelength_data(self, wavelengths):
+    def check_wavelength_data(self, wavelengths, expected_unit=None):
         """Check that the wavelength data read from the file is correct."""
         # This will be 2D from the table so force to 1D for comparison
         self.assertEqual(wavelengths.shape, (self.wavelength.size, 1))
-        wavelengths = wavelengths.reshape(wavelengths.size)
+        wavelengths = wavelengths.flatten()
         np.testing.assert_array_equal(wavelengths, self.wavelength)
+
+        # Ensure that we have a quantity compatible with meters
+        self.assertEqual(wavelengths.to(u.m).unit.name, "m", "Wavelengths array converted to meters")
+
+        if expected_unit is not None:
+            self.assertEqual(wavelengths.unit.name, expected_unit)
 
     def test_make_fits_header(self):
         manager = DataManager(instrument=self.instrument, origin=self.origin)
@@ -146,7 +152,7 @@ class TestDataManager(unittest.TestCase):
                 self.assertEqual(len(wave_table), 1)
                 # Only one row so select that one explicitly
                 wavelengths = wave_table[wave_col_name][0]
-                self.check_wavelength_data(wavelengths)
+                self.check_wavelength_data(wavelengths, expected_unit=primary_header["CUNIT1"])
 
 
 if __name__ == "__main__":
