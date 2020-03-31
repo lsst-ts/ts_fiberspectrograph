@@ -27,3 +27,12 @@ A useful test that the above rule actually triggers when the device is plugged i
     udevadm test /devices/pci0000:00/0000:00:14.0/usb1/1-4
 
 You can also try running `udevadm monitor --udev` and plugging and un-plugging the device, but I found this not to be as informative as the above `udevadm test` command was.
+
+
+# Automatic Formatting
+
+This code is automatically formatted by ``black`` using a git pre-commit hook.
+To enable this:
+
+* Install the `black` Python package.
+* Run `git config core.hooksPath .githooks` once in this repository.
