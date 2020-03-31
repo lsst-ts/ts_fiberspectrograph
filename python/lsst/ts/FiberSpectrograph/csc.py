@@ -19,57 +19,49 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = ["FiberSpectrographCsc", "serial_numbers"]
+__all__ = ["FiberSpectrographCsc"]
 
 import asyncio
+import io
+import pathlib
 
-import astropy.time
 import astropy.units as u
 
+from . import constants
 from .avsSimulator import AvsSimulator
 from .avsFiberSpectrograph import AvsFiberSpectrograph
 from . import dataManager
 from lsst.ts.idl.enums.FiberSpectrograph import ExposureState
 from lsst.ts import salobj
 
-# The instrument names to be accessed by index number.
-instruments = {-1: "unknown", 1: "MTBlue", 2: "MTRed", 3: "ATBroad"}
 
-# The serial numbers of the above instruments.
-# index=-1 means "use the only connected spectrograph."
-serial_numbers = {-1: None, 1: "1606192U1", 2: "1606190U1", 3: "1606191U1"}
-
-
-class FiberSpectrographCsc(salobj.BaseCsc):
+class FiberSpectrographCsc(salobj.ConfigurableCsc):
     """Commandable SAL Component (CSC) to communicate with the Avantes Fiber
     Spectrograph.
 
     Parameters
     ----------
+    index : `int`
+        The SAL index; this determines which spectrograph to connect to.
+        See the ``FiberSpectrograph`` Enumeration in
+        ``ts_xml/sal_interfaces/SALSubsystems.xml`` for index:name mapping.
+        index=-1 means use the only connected spectrograph.
+    config_dir : `str` (optional)
+        Directory of configuration files, or None for the standard
+        configuration directory (obtained from `get_default_config_dir`).
+        This is provided for unit testing.
     initial_state : `salobj.State` or `int`, optional
         The initial state of the CSC. This is provided for unit testing,
         as real CSCs should start up in `lsst.ts.salobj.StateSTANDBY`,
         the default.
     simulation_mode : `int`, optional
         Simulation mode.
-    outpath : `str`, optional
-        Write output files to this path.
-        TODO: this is temporary until we have a working LFA.
-    index : `int`
-        The SAL index; this determines which spectrograph to connect to.
-        See the ``FiberSpectrograph`` Enumeration in
-        ``ts_xml/sal_interfaces/SALSubsystems.xml`` for index:name mapping.
-        index=-1 means use the only connected spectrograph.
 
     Notes
     -----
     **Simulation Modes**
 
-    Supported simulation modes:
-
-    * 0: regular operation
-    * 1: simulation mode: start a mock spectrograph library and talk to it
-         instead of the real device.
+    Supported simulation modes are a `SimulationMode` bitmask.
 
     **Error codes**
 
@@ -79,34 +71,64 @@ class FiberSpectrographCsc(salobj.BaseCsc):
 
     def __init__(
         self,
+        index,
+        config_dir=None,
         initial_state=salobj.State.STANDBY,
         simulation_mode=0,
-        outpath=None,
-        *,
-        index,
     ):
+        index = constants.SalIndex(index)
+        schema_path = (
+            pathlib.Path(__file__)
+            .resolve()
+            .parents[4]
+            .joinpath("schema", "FiberSpectrograph.yaml")
+        )
         self._simulator = AvsSimulator()
         self.device = None
 
-        self.serial_number = serial_numbers[index]
-        self.name = instruments[index]
+        self.serial_number = constants.SERIAL_NUMBERS[index]
+        # Short name of instrument
+        self.band_name = constants.BAND_NAMES[index]
+        self.generator_name = f"fiberSpec{self.band_name}"
+        self.s3bucket_name = None  # Set by `configure`.
+        self.s3bucket = None  # Set by `handle_summary_state`.
 
         self.data_manager = dataManager.DataManager(
-            instrument=self.name, origin=type(self).__name__, outpath=outpath
+            instrument=f"FiberSpectrograph.{self.band_name}", origin=type(self).__name__
         )
         self.telemetry_loop_task = salobj.make_done_future()
         self.telemetry_interval = 10  # seconds between telemetry output
 
         super().__init__(
-            "FiberSpectrograph",
+            name="FiberSpectrograph",
             index=index,
+            schema_path=schema_path,
+            config_dir=config_dir,
             initial_state=initial_state,
             simulation_mode=simulation_mode,
         )
 
+    @staticmethod
+    def get_config_pkg():
+        return "ts_config_ocs"
+
+    async def configure(self, config):
+        # Make bucket name now, to validate config
+        self.s3bucket_name = salobj.AsyncS3Bucket.make_bucket_name(
+            salname=self.salinfo.name,
+            salindexname=self.band_name,
+            s3instance=config.s3instance,
+        )
+        self.config = config
+
     async def handle_summary_state(self):
         # disabled: connect and send telemetry, but no commands allowed.
         if self.summary_state in (salobj.State.ENABLED, salobj.State.DISABLED):
+            if self.s3bucket is None:
+                domock = self.simulation_mode & constants.SimulationMode.S3Server != 0
+                self.s3bucket = salobj.AsyncS3Bucket(
+                    name=self.s3bucket_name, domock=domock
+                )
             if self.device is None:
                 try:
                     self.device = AvsFiberSpectrograph(
@@ -131,6 +153,9 @@ class FiberSpectrographCsc(salobj.BaseCsc):
             if self.device is not None:
                 self.device.disconnect()
             self.device = None
+            if self.s3bucket is not None:
+                self.s3bucket.stop_mock()
+            self.s3bucket = None
 
     async def close_tasks(self):
         """Kill the telemetry loop if we are closed outside of OFFLINE.
@@ -153,10 +178,12 @@ class FiberSpectrographCsc(salobj.BaseCsc):
             await asyncio.sleep(self.telemetry_interval)
 
     async def implement_simulation_mode(self, simulation_mode):
-        if simulation_mode == 0:
-            self._simulator.stop()
-        if simulation_mode == 1:
+        if simulation_mode < 0 or simulation_mode > sum(constants.SimulationMode):
+            raise ValueError(f"Unsupported simulation_mode {simulation_mode}")
+        if simulation_mode & constants.SimulationMode.Spectrograph != 0:
             self._simulator.start()
+        else:
+            self._simulator.stop()
 
     async def do_expose(self, data):
         """Take an exposure with the connected spectrograph.
@@ -178,16 +205,16 @@ class FiberSpectrographCsc(salobj.BaseCsc):
         if msg is not None:
             raise salobj.ExpectedError(msg)
         try:
-            date_begin = astropy.time.Time.now()
+            date_begin = salobj.astropy_time_from_tai_unix(salobj.current_tai())
             task = asyncio.create_task(self.device.expose(data.duration))
             self.evt_exposureState.set_put(status=ExposureState.INTEGRATING)
             wavelength, spectrum = await task
-            date_end = astropy.time.Time.now()
+            date_end = salobj.astropy_time_from_tai_unix(salobj.current_tai())
             self.evt_exposureState.set_put(status=ExposureState.DONE)
             temperature = self.tel_temperature.data.temperature * u.deg_C
             setpoint = self.tel_temperature.data.setpoint * u.deg_C
             n_pixels = self.evt_deviceInfo.data.npixels
-            specData = dataManager.SpectrographData(
+            spec_data = dataManager.SpectrographData(
                 wavelength=wavelength,
                 spectrum=spectrum,
                 duration=data.duration,
@@ -199,8 +226,6 @@ class FiberSpectrographCsc(salobj.BaseCsc):
                 temperature_setpoint=setpoint,
                 n_pixels=n_pixels,
             )
-            output = self.data_manager(specData)
-            self.evt_largeFileObjectAvailable.set_put(url=output)
         except asyncio.TimeoutError as e:
             self.evt_exposureState.set_put(status=ExposureState.TIMEDOUT)
             msg = f"Timeout waiting for exposure: {repr(e)}"
@@ -214,6 +239,50 @@ class FiberSpectrographCsc(salobj.BaseCsc):
             msg = f"Failed to take exposure with fiber spectrograph: {repr(e)}"
             self.fault(code=20, report=msg)
             raise salobj.ExpectedError(msg)
+
+        await self.save_data(spec_data)
+
+    async def save_data(self, spec_data):
+        """Save a spectrograph FITS file to the LFA, if possible.
+
+        If the S3 upload fails then try to save the file locally to /tmp.
+        The ``largeFileObjectAvailable`` event is written only if S3
+        upload succeeds.
+        """
+        hdulist = self.data_manager.make_hdulist(spec_data)
+        fileobj = io.BytesIO()
+        hdulist.writeto(fileobj)
+        fileobj.seek(0)
+        date_begin = spec_data.date_begin
+        key = self.s3bucket.make_key(
+            salname=self.salinfo.name, generator=self.generator_name, date=date_begin
+        )
+        try:
+            await self.s3bucket.upload(fileobj=fileobj, key=key)
+            url = f"s3://{self.s3bucket.name}/{key}"
+            self.evt_largeFileObjectAvailable.set_put(
+                url=url, generator=self.generator_name
+            )
+        except Exception:
+            self.log.exception(
+                f"Could not upload FITS file {key} to S3; trying to save to local disk."
+            )
+            try:
+                filepath = pathlib.Path("/tmp") / self.s3bucket.name / key
+                dirpath = filepath.parent
+                if not dirpath.exists():
+                    self.log.info(f"Create {str(dirpath)}")
+                    dirpath.mkdir(parents=True, exist_ok=True)
+
+                hdulist.writeto(filepath)
+                self.evt_largeFileObjectAvailable.set_put(
+                    url=filepath.as_uri(), generator=self.generator_name
+                )
+            except Exception:
+                self.log.exception(
+                    "Could not save the FITS file locally, either. The data is lost."
+                )
+                raise
 
     async def do_cancelExposure(self, data):
         """Cancel an ongoing exposure.

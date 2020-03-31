@@ -19,8 +19,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import os.path
-import tempfile
 import unittest
 
 from astropy.table import QTable
@@ -128,44 +126,23 @@ class TestDataManager(unittest.TestCase):
         # The wavelength data should not be a Primary HDU.
         self.assertNotIsInstance(hdu, astropy.io.fits.PrimaryHDU)
 
-    def test_call(self):
-        """Test that calling a DataManager outputs a FITS file with the correct
-        values in it.
+    def test_make_hdulist(self):
+        manager = DataManager(instrument=self.instrument, origin=self.origin)
+        hdulist = manager.make_hdulist(self.data)
+        self.check_header(hdulist[0].header)
+        np.testing.assert_array_equal(hdulist[0].data, self.spectrum)
 
-        TODO: once we have a working LFA API in salobj, replace the
-        "file output" part of this test with a `spulec/moto`-based test that
-        we've sent things to the correct s3 store.
-        """
-        with tempfile.TemporaryDirectory() as path:
-            manager = DataManager(
-                instrument=self.instrument, origin=self.origin, outpath=path
-            )
-            output = manager(self.data)
-            expected_path = os.path.join(path, "TestBlue_1999-01-01T00:00:00.000.fits")
-            self.assertEqual(output, expected_path)
-            with astropy.io.fits.open(output, checksum=True) as hdulist:
-                self.check_header(hdulist[0].header)
-                np.testing.assert_array_equal(hdulist[0].data, self.spectrum)
-
-                # Ensure the checksums are written, but let astropy verify them
-                self.assertIn("CHECKSUM", hdulist[0].header)
-                self.assertIn("DATASUM", hdulist[0].header)
-                self.assertIn("CHECKSUM", hdulist[1].header)
-                self.assertIn("DATASUM", hdulist[1].header)
-
-                # Check that the headers are consistent with WCS -TAB
-                primary_header = hdulist[0].header
-                self.assertEqual(primary_header["CTYPE1"], "WAVE-TAB")
-                wcs_tab_name = primary_header["PS1_0"]
-                wcs_tab_extver = primary_header["PV1_1"]
-                wave_col_name = primary_header["PS1_1"]
-                wave_table = QTable.read(hdulist[wcs_tab_name, wcs_tab_extver])
-                self.assertEqual(len(wave_table), 1)
-                # Only one row so select that one explicitly
-                wavelengths = wave_table[wave_col_name][0]
-                self.check_wavelength_data(
-                    wavelengths, expected_unit=primary_header["CUNIT1"]
-                )
+        # Check that the headers are consistent with WCS -TAB
+        primary_header = hdulist[0].header
+        self.assertEqual(primary_header["CTYPE1"], "WAVE-TAB")
+        wcs_tab_name = primary_header["PS1_0"]
+        wcs_tab_extver = primary_header["PV1_1"]
+        wave_col_name = primary_header["PS1_1"]
+        wave_table = QTable.read(hdulist[wcs_tab_name, wcs_tab_extver])
+        self.assertEqual(len(wave_table), 1)
+        # Only one row so select that one explicitly
+        wavelengths = wave_table[wave_col_name][0]
+        self.check_wavelength_data(wavelengths, expected_unit=primary_header["CUNIT1"])
 
 
 if __name__ == "__main__":

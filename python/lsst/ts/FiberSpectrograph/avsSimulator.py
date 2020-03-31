@@ -29,6 +29,7 @@ import unittest.mock
 
 import numpy as np
 
+from . import constants
 from .avsFiberSpectrograph import AvsIdentity, AvsDeviceStatus
 
 
@@ -47,8 +48,9 @@ class AvsSimulator:
         # This will be passed into the patcher to configure the mock.
         config = dict()
 
-        self.n_devices = 1  # Pretend one device is connected
-        self.serial_number = "123456789"
+        # Pretend one device is connected: the red spectrograph
+        self.n_devices = 1
+        self.serial_number = constants.SERIAL_NUMBERS[constants.SalIndex.RED]
         self.handle = 314159
 
         name = b"Fake Spectrograph"

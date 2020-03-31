@@ -22,7 +22,6 @@
 __all__ = ["SpectrographData", "DataManager"]
 
 import dataclasses
-import os.path
 
 import astropy.io.fits
 import astropy.time
@@ -64,7 +63,7 @@ class SpectrographData:
 
 
 class DataManager:
-    """A data packager and uploader for output from the Fiber Spectrograph CSC.
+    """A data packager from the Fiber Spectrograph CSC.
 
     Attributes
     ----------
@@ -72,10 +71,6 @@ class DataManager:
         The name of the instrument taking the data.
     origin : `str`
         The name of the program that produced this data.
-    outpath : `str`, optional
-        A path to write the FITS files to.
-        **WARNING**: this argument will be removed once the API for writing
-        to the LFA becomes available in salobj; do not rely on it.
     """
 
     wcs_table_name = "WCS-TAB"
@@ -85,38 +80,26 @@ class DataManager:
     wcs_column_name = "wavelength"
     """Name of the table column containing the wavelength information."""
 
-    def __init__(self, instrument, origin, outpath=None):
+    def __init__(self, instrument, origin):
         self.instrument = instrument
         self.origin = origin
-        self.outpath = outpath
 
-    def __call__(self, data):
+    def make_hdulist(self, data):
         """Generate a FITS hdulist built from SpectrographData.
 
         Parameters
         ----------
         data : `SpectrographData`
-            The data to build the FITS output with.
+            The data from which to build the FITS hdulist.
 
         Returns
         -------
-        uri : `str`
-            The file path or other identifier (e.g. s3 store) for where the
-            data was sent.
+        hdulist : `astropy.io.fits.HDUList`
+            The FITS hdulist.
         """
         hdu1 = self.make_primary_hdu(data)
         hdu2 = self.make_wavelength_hdu(data)
-        hdulist = astropy.io.fits.HDUList([hdu1, hdu2])
-        # TODO: this writeto(file) block should be removed once we have a
-        # working LFA API to send data to.
-        if self.outpath is not None:
-            filename = os.path.join(
-                self.outpath, f"{self.instrument}_{data.date_begin.tai.fits}.fits"
-            )
-            hdulist.writeto(filename, checksum=True)
-            return filename
-        else:
-            return None
+        return astropy.io.fits.HDUList([hdu1, hdu2])
 
     def make_fits_header(self, data):
         """Return a FITS header built from SpectrographData."""
