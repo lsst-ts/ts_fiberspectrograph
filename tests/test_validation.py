@@ -39,7 +39,7 @@ class ValidationTestCase(unittest.TestCase):
             rawschema = f.read()
         self.schema = yaml.safe_load(rawschema)
         self.validator = salobj.DefaultingValidator(schema=self.schema)
-        self.default = dict(s3bucketsuffix="summit")
+        self.default = dict(s3instance="summit")
 
     def test_default(self):
         result = self.validator.validate(None)
@@ -47,7 +47,7 @@ class ValidationTestCase(unittest.TestCase):
             self.assertEqual(result[field], expected_value)
 
     def test_some_specified(self):
-        data = dict(s3bucketsuffix="a-valid-value")
+        data = dict(s3instance="a.valid.value")
         for field, value in data.items():
             one_field_data = {field: value}
             with self.subTest(one_field_data=one_field_data):
@@ -59,14 +59,16 @@ class ValidationTestCase(unittest.TestCase):
                         self.assertEqual(result[field], default_value)
 
     def test_invalid_configs(self):
-        for bad_s3bucketsuffix in (
+        for bad_s3instance in (
             "1BadName",  # No uppercase
             "2bad_name",  # No underscores
-            "3bad#name",  # No # @ , etc.
-            "4bad@name",  # No # @ , etc.
-            ".5badname",  # must start with letter or digit
+            "3bad-name",  # No hyphens
+            "4bad#name",  # No # @ , etc.
+            "5bad@name",  # No # @ , etc.
+            ".6badname",  # must start with letter or digit
+            "7badname.",  # must end with a letter or digit
         ):
-            bad_data = dict(s3bucketsuffix=bad_s3bucketsuffix)
+            bad_data = dict(s3instance=bad_s3instance)
             with self.subTest(bad_data=bad_data):
                 with self.assertRaises(jsonschema.exceptions.ValidationError):
                     self.validator.validate(bad_data)

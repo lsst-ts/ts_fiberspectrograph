@@ -5,11 +5,12 @@ title: FiberSpectrograph v1
 description: Schema for FiberSpectrograph configuration files
 type: object
 properties:
-  s3bucketsuffix:
-    description: Large File Annex S3 bucket name suffix. The full bucket name is f"rubinos-{s3bucketsuffix}".
+  s3instance:
+    description: >-
+      Large File Annex S3 instance, for example "summit", "ncsa", or "tucons".
     type: string
     default: "summit"
-    pattern: "^[a-z0-9][-.a-z0-9]*$"
+    pattern: "^[a-z0-9][.a-z0-9]*[a-z0-9]$"
 required:
-  - s3bucketsuffix
+  - s3instance
 additionalProperties: false
