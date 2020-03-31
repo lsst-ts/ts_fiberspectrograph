@@ -104,39 +104,33 @@ class FiberSpectrographCsc(salobj.BaseCsc):
             initial_simulation_mode=initial_simulation_mode,
         )
 
-    def report_summary_state(self):
-        try:
-            # disabled: connect and send telemetry, but no commands allowed.
-            if self.summary_state in (salobj.State.ENABLED, salobj.State.DISABLED):
-                if self.device is None:
-                    try:
-                        self.device = AvsFiberSpectrograph(
-                            serial_number=self.serial_number, log=self.log
-                        )
-                    except Exception as e:
-                        msg = "Failed to connect to fiber spectrograph."
-                        self.fault(code=1, report=f"{msg}: {repr(e)}")
-                        raise salobj.ExpectedError(msg)
-
-                if self.telemetry_loop_task.done():
-                    self.telemetry_loop_task = asyncio.create_task(
-                        self.telemetry_loop()
+    async def handle_summary_state(self):
+        # disabled: connect and send telemetry, but no commands allowed.
+        if self.summary_state in (salobj.State.ENABLED, salobj.State.DISABLED):
+            if self.device is None:
+                try:
+                    self.device = AvsFiberSpectrograph(
+                        serial_number=self.serial_number, log=self.log
                     )
-                status = self.device.get_status()
-                self.evt_deviceInfo.set_put(
-                    npixels=status.n_pixels,
-                    fpgaVersion=status.fpga_version,
-                    firmwareVersion=status.firmware_version,
-                    libraryVersion=status.library_version,
-                )
-            else:
-                self.telemetry_loop_task.cancel()
-                if self.device is not None:
-                    self.device.disconnect()
-                self.device = None
-        finally:
-            # Always report the final state, whatever happens above.
-            super().report_summary_state()
+                except Exception as e:
+                    msg = "Failed to connect to fiber spectrograph."
+                    self.fault(code=1, report=f"{msg}: {repr(e)}")
+                    raise salobj.ExpectedError(msg)
+
+            if self.telemetry_loop_task.done():
+                self.telemetry_loop_task = asyncio.create_task(self.telemetry_loop())
+            status = self.device.get_status()
+            self.evt_deviceInfo.set_put(
+                npixels=status.n_pixels,
+                fpgaVersion=status.fpga_version,
+                firmwareVersion=status.firmware_version,
+                libraryVersion=status.library_version,
+            )
+        else:
+            self.telemetry_loop_task.cancel()
+            if self.device is not None:
+                self.device.disconnect()
+            self.device = None
 
     async def close_tasks(self):
         """Kill the telemetry loop if we are closed outside of OFFLINE.
