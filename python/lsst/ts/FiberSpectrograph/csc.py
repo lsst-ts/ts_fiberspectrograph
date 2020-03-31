@@ -173,6 +173,7 @@ class FiberSpectrographCsc(salobj.BaseCsc):
         lsst.ts.salobj.ExpectedError
             Raised if an error occurs while taking the exposure.
         """
+        self.assert_enabled()
         msg = self.device.check_expose_ok(data.duration)
         if msg is not None:
             raise salobj.ExpectedError(msg)
@@ -222,4 +223,5 @@ class FiberSpectrographCsc(salobj.BaseCsc):
         data : `DataType`
             Command data
         """
+        self.assert_enabled()
         self.device.stop_exposure()
