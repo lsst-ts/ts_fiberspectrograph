@@ -33,11 +33,11 @@ from lsst.ts.idl.enums.FiberSpectrograph import ExposureState
 from lsst.ts import salobj
 
 # The instrument names to be accessed by index number.
-instruments = {-1: 'unknown', 1: 'MTBlue', 2: 'MTRed', 3: 'ATBroad'}
+instruments = {-1: "unknown", 1: "MTBlue", 2: "MTRed", 3: "ATBroad"}
 
 # The serial numbers of the above instruments.
 # index=-1 means "use the only connected spectrograph."
-serial_numbers = {-1: None, 1: '1606192U1', 2: '1606190U1', 3: '1606191U1'}
+serial_numbers = {-1: None, 1: "1606192U1", 2: "1606190U1", 3: "1606191U1"}
 
 
 class FiberSpectrographCsc(salobj.BaseCsc):
@@ -76,23 +76,33 @@ class FiberSpectrographCsc(salobj.BaseCsc):
     * 1: If there is an error connecting to the spectrograph.
     * 20: If there is an error taking an exposure.
     """
-    def __init__(self, initial_state=salobj.State.STANDBY,
-                 initial_simulation_mode=0,
-                 outpath=None, *, index):
+
+    def __init__(
+        self,
+        initial_state=salobj.State.STANDBY,
+        initial_simulation_mode=0,
+        outpath=None,
+        *,
+        index,
+    ):
         self._simulator = AvsSimulator()
         self.device = None
 
         self.serial_number = serial_numbers[index]
         self.name = instruments[index]
 
-        self.data_manager = dataManager.DataManager(instrument=self.name,
-                                                    origin=type(self).__name__,
-                                                    outpath=outpath)
+        self.data_manager = dataManager.DataManager(
+            instrument=self.name, origin=type(self).__name__, outpath=outpath
+        )
         self.telemetry_loop_task = salobj.make_done_future()
         self.telemetry_interval = 10  # seconds between telemetry output
 
-        super().__init__("FiberSpectrograph", index=index,
-                         initial_state=initial_state, initial_simulation_mode=initial_simulation_mode)
+        super().__init__(
+            "FiberSpectrograph",
+            index=index,
+            initial_state=initial_state,
+            initial_simulation_mode=initial_simulation_mode,
+        )
 
     def report_summary_state(self):
         try:
@@ -100,19 +110,25 @@ class FiberSpectrographCsc(salobj.BaseCsc):
             if self.summary_state in (salobj.State.ENABLED, salobj.State.DISABLED):
                 if self.device is None:
                     try:
-                        self.device = AvsFiberSpectrograph(serial_number=self.serial_number, log=self.log)
+                        self.device = AvsFiberSpectrograph(
+                            serial_number=self.serial_number, log=self.log
+                        )
                     except Exception as e:
                         msg = "Failed to connect to fiber spectrograph."
                         self.fault(code=1, report=f"{msg}: {repr(e)}")
                         raise salobj.ExpectedError(msg)
 
                 if self.telemetry_loop_task.done():
-                    self.telemetry_loop_task = asyncio.create_task(self.telemetry_loop())
+                    self.telemetry_loop_task = asyncio.create_task(
+                        self.telemetry_loop()
+                    )
                 status = self.device.get_status()
-                self.evt_deviceInfo.set_put(npixels=status.n_pixels,
-                                            fpgaVersion=status.fpga_version,
-                                            firmwareVersion=status.firmware_version,
-                                            libraryVersion=status.library_version)
+                self.evt_deviceInfo.set_put(
+                    npixels=status.n_pixels,
+                    fpgaVersion=status.fpga_version,
+                    firmwareVersion=status.firmware_version,
+                    libraryVersion=status.library_version,
+                )
             else:
                 self.telemetry_loop_task.cancel()
                 if self.device is not None:
@@ -137,8 +153,9 @@ class FiberSpectrographCsc(salobj.BaseCsc):
         """
         while True:
             status = self.device.get_status()
-            self.tel_temperature.set_put(temperature=status.temperature,
-                                         setpoint=status.temperature_setpoint)
+            self.tel_temperature.set_put(
+                temperature=status.temperature, setpoint=status.temperature_setpoint
+            )
             await asyncio.sleep(self.telemetry_interval)
 
     async def implement_simulation_mode(self, simulation_mode):
@@ -175,16 +192,18 @@ class FiberSpectrographCsc(salobj.BaseCsc):
             temperature = self.tel_temperature.data.temperature * u.deg_C
             setpoint = self.tel_temperature.data.setpoint * u.deg_C
             n_pixels = self.evt_deviceInfo.data.npixels
-            specData = dataManager.SpectrographData(wavelength=wavelength,
-                                                    spectrum=spectrum,
-                                                    duration=data.duration,
-                                                    date_begin=date_begin,
-                                                    date_end=date_end,
-                                                    type=data.type,
-                                                    source=data.source,
-                                                    temperature=temperature,
-                                                    temperature_setpoint=setpoint,
-                                                    n_pixels=n_pixels)
+            specData = dataManager.SpectrographData(
+                wavelength=wavelength,
+                spectrum=spectrum,
+                duration=data.duration,
+                date_begin=date_begin,
+                date_end=date_end,
+                type=data.type,
+                source=data.source,
+                temperature=temperature,
+                temperature_setpoint=setpoint,
+                n_pixels=n_pixels,
+            )
             output = self.data_manager(specData)
             self.evt_largeFileObjectAvailable.set_put(url=output)
         except asyncio.TimeoutError as e:

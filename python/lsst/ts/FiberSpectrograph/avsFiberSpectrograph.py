@@ -19,8 +19,15 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = ["AvsFiberSpectrograph", "AvsDeviceStatus", "AvsIdentity",
-           "AvsDeviceConfig", "AvsReturnCode", "AvsReturnError", "AvsMeasureConfig"]
+__all__ = [
+    "AvsFiberSpectrograph",
+    "AvsDeviceStatus",
+    "AvsIdentity",
+    "AvsDeviceConfig",
+    "AvsReturnCode",
+    "AvsReturnError",
+    "AvsMeasureConfig",
+]
 
 import asyncio
 import ctypes
@@ -32,6 +39,7 @@ import time
 
 import astropy.units as u
 import numpy as np
+
 # Fully-qualified path to the vendor-provided libavs AvaSpec library.
 # If installed via the vendor packages, it will be in `/usr/local/lib`.
 LIBRARY_PATH = "/usr/local/lib/libavs.so.0.2.0"
@@ -51,6 +59,7 @@ class AvsReturnError(Exception):
     what : `str`
         The function that was called that returned this error code.
     """
+
     def __init__(self, code, what):
         try:
             self.code = AvsReturnCode(code)
@@ -63,8 +72,10 @@ class AvsReturnError(Exception):
 
     def __str__(self):
         if self._valid is False:
-            return (f"Unknown Error ({self.code}) calling `{self.what}`;"
-                    " Please consult Avantes documentation and update `AvsReturnCode` to include this code.")
+            return (
+                f"Unknown Error ({self.code}) calling `{self.what}`;"
+                " Please consult Avantes documentation and update `AvsReturnCode` to include this code."
+            )
         if self.code == AvsReturnCode.ERR_INVALID_SIZE:
             return f"Fatal Error {self.code!r} calling `{self.what}`: allocated size too small for data."
         else:
@@ -124,6 +135,7 @@ class AvsFiberSpectrograph:
           was specified.
         * Raised if there is an error connecting to the requested device.
     """
+
     handle = None
     """The handle of the connected spectrograph.
     """
@@ -133,13 +145,14 @@ class AvsFiberSpectrograph:
 
     def __init__(self, serial_number=None, log=None, log_to_stdout=False):
         if log is None:
-            self.log = logging.getLogger('FiberSpectrograph')
+            self.log = logging.getLogger("FiberSpectrograph")
         else:
             self.log = log
 
         if log_to_stdout:
             self.log.setLevel(logging.DEBUG)
             import sys
+
             logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
 
         # How long to wait before we timeout on when polling for new data.
@@ -188,33 +201,43 @@ class AvsFiberSpectrograph:
         required_size = _getUIntPointer(n_devices * ctypes.sizeof(AvsIdentity))
         device_list = _getAvsIdentityArrayPointer(n_devices)
 
-        code = self.libavs.AVS_GetList(required_size.contents.value, required_size, device_list)
+        code = self.libavs.AVS_GetList(
+            required_size.contents.value, required_size, device_list
+        )
         assert_avs_code(code, "GetList (device list)")
         device_list = list(device_list)  # unpack the array pointer
         self.log.debug("Found devices: %s", device_list)
 
         if serial_number is None:
             if len(device_list) > 1:
-                raise RuntimeError(f"Multiple devices found, but no serial number specified."
-                                   f" Attached devices: {device_list}")
+                raise RuntimeError(
+                    f"Multiple devices found, but no serial number specified."
+                    f" Attached devices: {device_list}"
+                )
             device = device_list[0]
         else:
             for device in device_list:
-                if serial_number == device.SerialNumber.decode('ascii'):
+                if serial_number == device.SerialNumber.decode("ascii"):
                     break
             else:
                 msg = f"Device serial number {serial_number} not found in device list: {device_list}"
                 raise LookupError(msg)
 
-        statusCode = AvsDeviceStatus(struct.unpack('B', device.Status)[0])
+        statusCode = AvsDeviceStatus(struct.unpack("B", device.Status)[0])
         if statusCode != AvsDeviceStatus.USB_AVAILABLE:
-            raise RuntimeError(f"Requested AVS device is already in use: {repr(statusCode)}")
+            raise RuntimeError(
+                f"Requested AVS device is already in use: {repr(statusCode)}"
+            )
 
         self.handle = self.libavs.AVS_Activate(device)
         assert_avs_code(self.handle, "Activate")
         if self.handle == AvsReturnCode.invalidHandle:
-            raise RuntimeError(f"Invalid device handle; cannot activate device {device}.")
-        self.log.info("Activated connection (handle=%s) with USB device %s.", self.handle, device)
+            raise RuntimeError(
+                f"Invalid device handle; cannot activate device {device}."
+            )
+        self.log.info(
+            "Activated connection (handle=%s) with USB device %s.", self.handle, device
+        )
         self.device = device
 
         # store the number of pixels for use when taking exposures.
@@ -238,11 +261,19 @@ class AvsFiberSpectrograph:
                 try:
                     self.stop_exposure()  # stop any active exposure
                 except Exception as e:
-                    self.log.error("Error stopping exposure during disconnect. %s: %s", type(e).__name__, e)
+                    self.log.error(
+                        "Error stopping exposure during disconnect. %s: %s",
+                        type(e).__name__,
+                        e,
+                    )
                 result = self.libavs.AVS_Deactivate(self.handle)
                 if not result:
-                    self.log.error("Could not deactivate device %s with handle %s. Assuming it is safe to "
-                                   "close the communication port anyway.", self.device, self.handle)
+                    self.log.error(
+                        "Could not deactivate device %s with handle %s. Assuming it is safe to "
+                        "close the communication port anyway.",
+                        self.device,
+                        self.handle,
+                    )
                 self.handle = None
         except Exception as e:
             self.log.error("Error deactivating device. %s: %s", type(e).__name__, e)
@@ -274,32 +305,40 @@ class AvsFiberSpectrograph:
         fpga_version = (ctypes.c_ubyte * 16)()
         firmware_version = (ctypes.c_ubyte * 16)()
         library_version = (ctypes.c_ubyte * 16)()
-        code = self.libavs.AVS_GetVersionInfo(self.handle, fpga_version, firmware_version, library_version)
+        code = self.libavs.AVS_GetVersionInfo(
+            self.handle, fpga_version, firmware_version, library_version
+        )
         assert_avs_code(code, "GetVersionInfo")
 
         config = AvsDeviceConfig()
-        code = self.libavs.AVS_GetParameter(self.handle,
-                                            ctypes.sizeof(config),
-                                            _getUIntPointer(ctypes.sizeof(config)),
-                                            config)
+        code = self.libavs.AVS_GetParameter(
+            self.handle,
+            ctypes.sizeof(config),
+            _getUIntPointer(ctypes.sizeof(config)),
+            config,
+        )
         assert_avs_code(code, "GetParameter")
 
         voltage = _getFloatPointer()
         code = self.libavs.AVS_GetAnalogIn(self.handle, 0, voltage)
         assert_avs_code(code, "GetAnalogIn")
-        temperature = np.polynomial.polynomial.polyval(voltage.contents.value, config.Temperature_3_m_aFit)
+        temperature = np.polynomial.polynomial.polyval(
+            voltage.contents.value, config.Temperature_3_m_aFit
+        )
 
         def decode(value):
             """Return a byte string decoded to ASCII with NULLs stripped."""
-            return bytes(value).decode('ascii').split('\x00', 1)[0]
+            return bytes(value).decode("ascii").split("\x00", 1)[0]
 
-        status = SpectrographStatus(n_pixels=self._n_pixels,
-                                    fpga_version=decode(fpga_version),
-                                    firmware_version=decode(firmware_version),
-                                    library_version=decode(library_version),
-                                    temperature_setpoint=config.TecControl_m_Setpoint,
-                                    temperature=temperature,
-                                    config=config if full else None)
+        status = SpectrographStatus(
+            n_pixels=self._n_pixels,
+            fpga_version=decode(fpga_version),
+            firmware_version=decode(firmware_version),
+            library_version=decode(library_version),
+            temperature_setpoint=config.TecControl_m_Setpoint,
+            temperature=temperature,
+            config=config if full else None,
+        )
         return status
 
     def check_expose_ok(self, duration):
@@ -429,7 +468,9 @@ class AvsFiberSpectrograph:
             await asyncio.sleep(0.01)
 
         self.log.debug("Reading measured data from spectrograph.")
-        time_label = _getUIntPointer()  # NOTE: it's not clear from the docs what this is for
+        time_label = (
+            _getUIntPointer()
+        )  # NOTE: it's not clear from the docs what this is for
         spectrum = (ctypes.c_double * self._n_pixels)()
         code = self.libavs.AVS_GetScopeData(self.handle, time_label, spectrum)
         assert_avs_code(code, "GetScopeData")
@@ -465,44 +506,59 @@ class AvsFiberSpectrograph:
         that manipulates a ctypes pointer should have its argument types
         defined here.
         """
-        self.libavs.AVS_GetList.argtypes = [ctypes.c_long,
-                                            ctypes.POINTER(ctypes.c_uint),
-                                            ctypes.POINTER(AvsIdentity)]
+        self.libavs.AVS_GetList.argtypes = [
+            ctypes.c_long,
+            ctypes.POINTER(ctypes.c_uint),
+            ctypes.POINTER(AvsIdentity),
+        ]
         self.libavs.AVS_Activate.argtypes = [ctypes.POINTER(AvsIdentity)]
-        self.libavs.AVS_GetNumPixels.argtypes = [ctypes.c_long,
-                                                 ctypes.POINTER(ctypes.c_ushort)]
-        self.libavs.AVS_GetParameter.argtypes = [ctypes.c_long,
-                                                 ctypes.c_uint,
-                                                 ctypes.POINTER(ctypes.c_uint),
-                                                 ctypes.POINTER(AvsDeviceConfig)]
-        self.libavs.AVS_GetVersionInfo.argtypes = [ctypes.c_long,
-                                                   ctypes.POINTER(ctypes.c_ubyte),
-                                                   ctypes.POINTER(ctypes.c_ubyte),
-                                                   ctypes.POINTER(ctypes.c_ubyte)]
-        self.libavs.AVS_GetAnalogIn.argtypes = [ctypes.c_long,
-                                                ctypes.c_ubyte,
-                                                ctypes.POINTER(ctypes.c_float)]
-        self.libavs.AVS_PrepareMeasure.argtypes = [ctypes.c_long,
-                                                   ctypes.POINTER(AvsMeasureConfig)]
+        self.libavs.AVS_GetNumPixels.argtypes = [
+            ctypes.c_long,
+            ctypes.POINTER(ctypes.c_ushort),
+        ]
+        self.libavs.AVS_GetParameter.argtypes = [
+            ctypes.c_long,
+            ctypes.c_uint,
+            ctypes.POINTER(ctypes.c_uint),
+            ctypes.POINTER(AvsDeviceConfig),
+        ]
+        self.libavs.AVS_GetVersionInfo.argtypes = [
+            ctypes.c_long,
+            ctypes.POINTER(ctypes.c_ubyte),
+            ctypes.POINTER(ctypes.c_ubyte),
+            ctypes.POINTER(ctypes.c_ubyte),
+        ]
+        self.libavs.AVS_GetAnalogIn.argtypes = [
+            ctypes.c_long,
+            ctypes.c_ubyte,
+            ctypes.POINTER(ctypes.c_float),
+        ]
+        self.libavs.AVS_PrepareMeasure.argtypes = [
+            ctypes.c_long,
+            ctypes.POINTER(AvsMeasureConfig),
+        ]
         # Measure's second argument is the callback function pointer, but we
         # aren't using callbacks here, so it will always be NULL==0.
-        self.libavs.AVS_Measure.argtypes = [ctypes.c_long,
-                                            ctypes.c_int,
-                                            ctypes.c_short]
-        self.libavs.AVS_GetLambda.argtypes = [ctypes.c_long,
-                                              ctypes.POINTER(ctypes.c_double)]
+        self.libavs.AVS_Measure.argtypes = [ctypes.c_long, ctypes.c_int, ctypes.c_short]
+        self.libavs.AVS_GetLambda.argtypes = [
+            ctypes.c_long,
+            ctypes.POINTER(ctypes.c_double),
+        ]
 
 
 class FrozenMixin:
     """Mixin to freeze a classes attributes, e.g. for subclasses of
     `ctypes.Structure` to prevent mistyping structure attributes.
     """
+
     def __setattr__(self, key, value):
         """To prevent accidentally assigning other attributes to this
         structure (mostly in unittests).
         """
         if not hasattr(self, key):
-            raise TypeError(f"{self} is a frozen class; '{key}' is not an already-existing attribute.")
+            raise TypeError(
+                f"{self} is a frozen class; '{key}' is not an already-existing attribute."
+            )
         object.__setattr__(self, key, value)
 
 
@@ -517,6 +573,7 @@ class AvsDeviceStatus(enum.IntEnum):
     Values are returned in the AvsIdentity ``Status`` field as a ``char``.
     Values >3 only apply to ethernet spectrographs, not USB ones.
     """
+
     UNKNOWN = 0
     USB_AVAILABLE = 1
     USB_IN_USE_BY_APPLICATION = 2
@@ -525,91 +582,102 @@ class AvsDeviceStatus(enum.IntEnum):
 
 class AvsIdentity(ctypes.Structure, FrozenMixin):
     """Python structure to represent the `AvsIdentityType` C struct."""
+
     _pack_ = 1
-    _fields_ = [("SerialNumber", ctypes.c_char * AVS_SERIAL_LEN),
-                ("UserFriendlyName", ctypes.c_char * AVS_USER_ID_LEN),
-                ("Status", ctypes.c_char)]
+    _fields_ = [
+        ("SerialNumber", ctypes.c_char * AVS_SERIAL_LEN),
+        ("UserFriendlyName", ctypes.c_char * AVS_USER_ID_LEN),
+        ("Status", ctypes.c_char),
+    ]
 
     def __repr__(self):
-        serial = self.SerialNumber.decode('ascii')
-        name = self.UserFriendlyName.decode('ascii')
-        status = AvsDeviceStatus(struct.unpack('B', self.Status)[0])
+        serial = self.SerialNumber.decode("ascii")
+        name = self.UserFriendlyName.decode("ascii")
+        status = AvsDeviceStatus(struct.unpack("B", self.Status)[0])
         return f'AvsIdentity("{serial}", "{name}", {repr(status)})'
 
     def __eq__(self, other):
-        return (self.SerialNumber == other.SerialNumber and
-                self.UserFriendlyName == other.UserFriendlyName and
-                self.Status == other.Status)
+        return (
+            self.SerialNumber == other.SerialNumber
+            and self.UserFriendlyName == other.UserFriendlyName
+            and self.Status == other.Status
+        )
 
 
 class AvsDeviceConfig(ctypes.Structure, FrozenMixin):
     """Python structure to represent the `DeviceConfigType` C struct."""
+
     _pack_ = 1
-    _fields_ = [("Len", ctypes.c_uint16),
-                ("ConfigVersion", ctypes.c_uint16),
-                ("aUserFriendlyId", ctypes.c_char * AVS_USER_ID_LEN),
-                ("Detector_m_SensorType", ctypes.c_uint8),
-                ("Detector_m_NrPixels", ctypes.c_uint16),
-                ("Detector_m_aFit", ctypes.c_float * 5),
-                ("Detector_m_NLEnable", ctypes.c_bool),
-                ("Detector_m_aNLCorrect", ctypes.c_double * 8),
-                ("Detector_m_aLowNLCounts", ctypes.c_double),
-                ("Detector_m_aHighNLCounts", ctypes.c_double),
-                ("Detector_m_Gain", ctypes.c_float * 2),
-                ("Detector_m_Reserved", ctypes.c_float),
-                ("Detector_m_Offset", ctypes.c_float * 2),
-                ("Detector_m_ExtOffset", ctypes.c_float),
-                ("Detector_m_DefectivePixels", ctypes.c_uint16 * 30),
-                ("Irradiance_m_IntensityCalib_m_Smoothing_m_SmoothPix", ctypes.c_uint16),
-                ("Irradiance_m_IntensityCalib_m_Smoothing_m_SmoothModel", ctypes.c_uint8),
-                ("Irradiance_m_IntensityCalib_m_CalInttime", ctypes.c_float),
-                ("Irradiance_m_IntensityCalib_m_aCalibConvers", ctypes.c_float * 4096),
-                ("Irradiance_m_CalibrationType", ctypes.c_uint8),
-                ("Irradiance_m_FiberDiameter", ctypes.c_uint32),
-                ("Reflectance_m_Smoothing_m_SmoothPix", ctypes.c_uint16),
-                ("Reflectance_m_Smoothing_m_SmoothModel", ctypes.c_uint8),
-                ("Reflectance_m_CalInttime", ctypes.c_float),
-                ("Reflectance_m_aCalibConvers", ctypes.c_float * 4096),
-                ("SpectrumCorrect", ctypes.c_float * 4096),
-                ("StandAlone_m_Enable", ctypes.c_bool),
-                ("StandAlone_m_Meas_m_StartPixel", ctypes.c_uint16),
-                ("StandAlone_m_Meas_m_StopPixel", ctypes.c_uint16),
-                ("StandAlone_m_Meas_m_IntegrationTime", ctypes.c_float),
-                ("StandAlone_m_Meas_m_IntegrationDelay", ctypes.c_uint32),
-                ("StandAlone_m_Meas_m_NrAverages", ctypes.c_uint32),
-                ("StandAlone_m_Meas_m_DynamicDarkCorrection_m_Enable", ctypes.c_uint8),
-                ("StandAlone_m_Meas_m_DynamicDarkCorrection_m_ForgetPercentage", ctypes.c_uint8),
-                ("StandAlone_m_Meas_m_Smoothing_m_SmoothPix", ctypes.c_uint16),
-                ("StandAlone_m_Meas_m_Smoothing_m_SmoothModel", ctypes.c_uint8),
-                ("StandAlone_m_Meas_m_SaturationDetection", ctypes.c_uint8),
-                ("StandAlone_m_Meas_m_Trigger_m_Mode", ctypes.c_uint8),
-                ("StandAlone_m_Meas_m_Trigger_m_Source", ctypes.c_uint8),
-                ("StandAlone_m_Meas_m_Trigger_m_SourceType", ctypes.c_uint8),
-                ("StandAlone_m_Meas_m_Control_m_StrobeControl", ctypes.c_uint16),
-                ("StandAlone_m_Meas_m_Control_m_LaserDelay", ctypes.c_uint32),
-                ("StandAlone_m_Meas_m_Control_m_LaserWidth", ctypes.c_uint32),
-                ("StandAlone_m_Meas_m_Control_m_LaserWaveLength", ctypes.c_float),
-                ("StandAlone_m_Meas_m_Control_m_StoreToRam", ctypes.c_uint16),
-                ("StandAlone_m_Nmsr", ctypes.c_int16),
-                ("StandAlone_m_Reserved", ctypes.c_uint8 * 12),
-                ("Temperature_1_m_aFit", ctypes.c_float * 5),
-                ("Temperature_2_m_aFit", ctypes.c_float * 5),
-                ("Temperature_3_m_aFit", ctypes.c_float * 5),
-                ("TecControl_m_Enable", ctypes.c_bool),
-                ("TecControl_m_Setpoint", ctypes.c_float),
-                ("TecControl_m_aFit", ctypes.c_float * 2),
-                ("ProcessControl_m_AnalogLow", ctypes.c_float * 2),
-                ("ProcessControl_m_AnalogHigh", ctypes.c_float * 2),
-                ("ProcessControl_m_DigitalLow", ctypes.c_float * 10),
-                ("ProcessControl_m_DigitalHigh", ctypes.c_float * 10),
-                ("EthernetSettings_m_IpAddr", ctypes.c_uint32),
-                ("EthernetSettings_m_NetMask", ctypes.c_uint32),
-                ("EthernetSettings_m_Gateway", ctypes.c_uint32),
-                ("EthernetSettings_m_DhcpEnabled", ctypes.c_uint8),
-                ("EthernetSettings_m_TcpPort", ctypes.c_uint16),
-                ("EthernetSettings_m_LinkStatus", ctypes.c_uint8),
-                ("Reserved", ctypes.c_uint8 * 9720),
-                ("OemData", ctypes.c_uint8 * 4096)]
+    _fields_ = [
+        ("Len", ctypes.c_uint16),
+        ("ConfigVersion", ctypes.c_uint16),
+        ("aUserFriendlyId", ctypes.c_char * AVS_USER_ID_LEN),
+        ("Detector_m_SensorType", ctypes.c_uint8),
+        ("Detector_m_NrPixels", ctypes.c_uint16),
+        ("Detector_m_aFit", ctypes.c_float * 5),
+        ("Detector_m_NLEnable", ctypes.c_bool),
+        ("Detector_m_aNLCorrect", ctypes.c_double * 8),
+        ("Detector_m_aLowNLCounts", ctypes.c_double),
+        ("Detector_m_aHighNLCounts", ctypes.c_double),
+        ("Detector_m_Gain", ctypes.c_float * 2),
+        ("Detector_m_Reserved", ctypes.c_float),
+        ("Detector_m_Offset", ctypes.c_float * 2),
+        ("Detector_m_ExtOffset", ctypes.c_float),
+        ("Detector_m_DefectivePixels", ctypes.c_uint16 * 30),
+        ("Irradiance_m_IntensityCalib_m_Smoothing_m_SmoothPix", ctypes.c_uint16),
+        ("Irradiance_m_IntensityCalib_m_Smoothing_m_SmoothModel", ctypes.c_uint8),
+        ("Irradiance_m_IntensityCalib_m_CalInttime", ctypes.c_float),
+        ("Irradiance_m_IntensityCalib_m_aCalibConvers", ctypes.c_float * 4096),
+        ("Irradiance_m_CalibrationType", ctypes.c_uint8),
+        ("Irradiance_m_FiberDiameter", ctypes.c_uint32),
+        ("Reflectance_m_Smoothing_m_SmoothPix", ctypes.c_uint16),
+        ("Reflectance_m_Smoothing_m_SmoothModel", ctypes.c_uint8),
+        ("Reflectance_m_CalInttime", ctypes.c_float),
+        ("Reflectance_m_aCalibConvers", ctypes.c_float * 4096),
+        ("SpectrumCorrect", ctypes.c_float * 4096),
+        ("StandAlone_m_Enable", ctypes.c_bool),
+        ("StandAlone_m_Meas_m_StartPixel", ctypes.c_uint16),
+        ("StandAlone_m_Meas_m_StopPixel", ctypes.c_uint16),
+        ("StandAlone_m_Meas_m_IntegrationTime", ctypes.c_float),
+        ("StandAlone_m_Meas_m_IntegrationDelay", ctypes.c_uint32),
+        ("StandAlone_m_Meas_m_NrAverages", ctypes.c_uint32),
+        ("StandAlone_m_Meas_m_DynamicDarkCorrection_m_Enable", ctypes.c_uint8),
+        (
+            "StandAlone_m_Meas_m_DynamicDarkCorrection_m_ForgetPercentage",
+            ctypes.c_uint8,
+        ),
+        ("StandAlone_m_Meas_m_Smoothing_m_SmoothPix", ctypes.c_uint16),
+        ("StandAlone_m_Meas_m_Smoothing_m_SmoothModel", ctypes.c_uint8),
+        ("StandAlone_m_Meas_m_SaturationDetection", ctypes.c_uint8),
+        ("StandAlone_m_Meas_m_Trigger_m_Mode", ctypes.c_uint8),
+        ("StandAlone_m_Meas_m_Trigger_m_Source", ctypes.c_uint8),
+        ("StandAlone_m_Meas_m_Trigger_m_SourceType", ctypes.c_uint8),
+        ("StandAlone_m_Meas_m_Control_m_StrobeControl", ctypes.c_uint16),
+        ("StandAlone_m_Meas_m_Control_m_LaserDelay", ctypes.c_uint32),
+        ("StandAlone_m_Meas_m_Control_m_LaserWidth", ctypes.c_uint32),
+        ("StandAlone_m_Meas_m_Control_m_LaserWaveLength", ctypes.c_float),
+        ("StandAlone_m_Meas_m_Control_m_StoreToRam", ctypes.c_uint16),
+        ("StandAlone_m_Nmsr", ctypes.c_int16),
+        ("StandAlone_m_Reserved", ctypes.c_uint8 * 12),
+        ("Temperature_1_m_aFit", ctypes.c_float * 5),
+        ("Temperature_2_m_aFit", ctypes.c_float * 5),
+        ("Temperature_3_m_aFit", ctypes.c_float * 5),
+        ("TecControl_m_Enable", ctypes.c_bool),
+        ("TecControl_m_Setpoint", ctypes.c_float),
+        ("TecControl_m_aFit", ctypes.c_float * 2),
+        ("ProcessControl_m_AnalogLow", ctypes.c_float * 2),
+        ("ProcessControl_m_AnalogHigh", ctypes.c_float * 2),
+        ("ProcessControl_m_DigitalLow", ctypes.c_float * 10),
+        ("ProcessControl_m_DigitalHigh", ctypes.c_float * 10),
+        ("EthernetSettings_m_IpAddr", ctypes.c_uint32),
+        ("EthernetSettings_m_NetMask", ctypes.c_uint32),
+        ("EthernetSettings_m_Gateway", ctypes.c_uint32),
+        ("EthernetSettings_m_DhcpEnabled", ctypes.c_uint8),
+        ("EthernetSettings_m_TcpPort", ctypes.c_uint16),
+        ("EthernetSettings_m_LinkStatus", ctypes.c_uint8),
+        ("Reserved", ctypes.c_uint8 * 9720),
+        ("OemData", ctypes.c_uint8 * 4096),
+    ]
 
     def __repr__(self):
         def to_str(value):
@@ -619,39 +687,46 @@ class AvsDeviceConfig(ctypes.Structure, FrozenMixin):
             except TypeError:
                 return str(value)
 
-        too_long = ["Irradiance_m_IntensityCalib_m_aCalibConvers",
-                    "Reflectance_m_aCalibConvers",
-                    "SpectrumCorrect",
-                    "Reserved",
-                    "OemData"]
-        attrs = ', '.join(f"{x[0]}={to_str(getattr(self, x[0]))}" for x in self._fields_
-                          if x[0] not in too_long)
+        too_long = [
+            "Irradiance_m_IntensityCalib_m_aCalibConvers",
+            "Reflectance_m_aCalibConvers",
+            "SpectrumCorrect",
+            "Reserved",
+            "OemData",
+        ]
+        attrs = ", ".join(
+            f"{x[0]}={to_str(getattr(self, x[0]))}"
+            for x in self._fields_
+            if x[0] not in too_long
+        )
         return f"AvsDeviceConfig({attrs})"
 
 
 class AvsMeasureConfig(ctypes.Structure, FrozenMixin):
     _pack_ = 1
-    _fields_ = [("StartPixel", ctypes.c_uint16),
-                ("StopPixel", ctypes.c_uint16),
-                ("IntegrationTime", ctypes.c_float),  # milliseconds
-                ("IntegrationDelay", ctypes.c_uint32),  # internal FGPA clock cycle
-                ("NrAverages", ctypes.c_uint32),
-                ("DynamicDarkCorrection_Enable", ctypes.c_uint8),
-                ("DynamicDarkCorrection_ForgetPercentage", ctypes.c_uint8),
-                ("Smoothing_SmoothPix", ctypes.c_uint16),
-                ("Smoothing_SmoothModel", ctypes.c_uint8),
-                ("SaturationDetection", ctypes.c_uint8),
-                ("Trigger_Mode", ctypes.c_uint8),
-                ("Trigger_Source", ctypes.c_uint8),
-                ("Trigger_SourceType", ctypes.c_uint8),
-                ("Control_StrobeControl", ctypes.c_uint16),
-                ("Control_LaserDelay", ctypes.c_uint32),
-                ("Control_LaserWidth", ctypes.c_uint32),
-                ("Control_LaserWaveLength", ctypes.c_float),
-                ("Control_StoreToRam", ctypes.c_uint16)]
+    _fields_ = [
+        ("StartPixel", ctypes.c_uint16),
+        ("StopPixel", ctypes.c_uint16),
+        ("IntegrationTime", ctypes.c_float),  # milliseconds
+        ("IntegrationDelay", ctypes.c_uint32),  # internal FGPA clock cycle
+        ("NrAverages", ctypes.c_uint32),
+        ("DynamicDarkCorrection_Enable", ctypes.c_uint8),
+        ("DynamicDarkCorrection_ForgetPercentage", ctypes.c_uint8),
+        ("Smoothing_SmoothPix", ctypes.c_uint16),
+        ("Smoothing_SmoothModel", ctypes.c_uint8),
+        ("SaturationDetection", ctypes.c_uint8),
+        ("Trigger_Mode", ctypes.c_uint8),
+        ("Trigger_Source", ctypes.c_uint8),
+        ("Trigger_SourceType", ctypes.c_uint8),
+        ("Control_StrobeControl", ctypes.c_uint16),
+        ("Control_LaserDelay", ctypes.c_uint32),
+        ("Control_LaserWidth", ctypes.c_uint32),
+        ("Control_LaserWaveLength", ctypes.c_float),
+        ("Control_StoreToRam", ctypes.c_uint16),
+    ]
 
     def __repr__(self):
-        attrs = ', '.join(f"{x[0]}={getattr(self, x[0])}" for x in self._fields_)
+        attrs = ", ".join(f"{x[0]}={getattr(self, x[0])}" for x in self._fields_)
         return f"AvsMeasureConfig({attrs})"
 
 
@@ -661,6 +736,7 @@ class AvsReturnCode(enum.IntEnum):
     section 3.6.1 "Return Value Constants" (page 44) of the "Avantes Linux
     Library Manual" PDF version 9.6.0.0.
     """
+
     success = 0
     ERR_INVALID_PARAMETER = -1
     ERR_OPERATION_NOT_SUPPORTED = -2
@@ -714,6 +790,7 @@ class AvsReturnCode(enum.IntEnum):
 @dataclasses.dataclass
 class SpectrographStatus:
     """The current status of the connected spectrograph."""
+
     n_pixels: int
     """The number of pixels in the instrument."""
     fpga_version: str

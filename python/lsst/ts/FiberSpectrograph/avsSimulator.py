@@ -40,6 +40,7 @@ class AvsSimulator:
     This configures the mock for a "no error conditions" use case,
     with all methods behaving as if one device is connected and behaving.
     """
+
     def __init__(self):
         self.mock = None
 
@@ -59,7 +60,8 @@ class AvsSimulator:
             amount of space was allocated for the list."""
             a_pList[0] = self.id0
             return self.n_devices
-        config['return_value.AVS_GetList.side_effect'] = mock_getList
+
+        config["return_value.AVS_GetList.side_effect"] = mock_getList
 
         # Have the number of pixels, and temperature values match the real
         # device, so that users aren't confused by simulation telemetry.
@@ -67,9 +69,12 @@ class AvsSimulator:
         self.temperature_setpoint = 5
         # thermistor voltage is converted to temperature via a polynomial:
         # these coefficients should result in a temperature of 5.0
-        self.tec_coefficients = np.array((1, 2, 0, 0., 0), dtype=np.float32)
+        self.tec_coefficients = np.array((1, 2, 0, 0.0, 0), dtype=np.float32)
         self.tec_voltage = 2
-        self.temperature = sum(coeff*self.tec_voltage**i for i, coeff in enumerate(self.tec_coefficients))
+        self.temperature = sum(
+            coeff * self.tec_voltage ** i
+            for i, coeff in enumerate(self.tec_coefficients)
+        )
 
         def mock_getParameter(handle, a_Size, a_pRequiredSize, config):
             """Assume a_pData has the correct amount of space allocated."""
@@ -78,19 +83,21 @@ class AvsSimulator:
             config.Temperature_3_m_aFit[:] = self.tec_coefficients
             return 0
 
-        config['return_value.AVS_GetParameter.side_effect'] = mock_getParameter
+        config["return_value.AVS_GetParameter.side_effect"] = mock_getParameter
 
         self.fpga_version = "fpga12345678901"
         self.firmware_version = "firmware123456"
         self.library_version = "library123456"
 
-        def mock_getVersionInfo(handle, a_pFPGAVersion, a_pFirmwareVersion, a_pLibVersion):
-            a_pFPGAVersion[:15] = self.fpga_version.encode('ascii')
-            a_pFirmwareVersion[:14] = self.firmware_version.encode('ascii')
-            a_pLibVersion[:13] = self.library_version.encode('ascii')
+        def mock_getVersionInfo(
+            handle, a_pFPGAVersion, a_pFirmwareVersion, a_pLibVersion
+        ):
+            a_pFPGAVersion[:15] = self.fpga_version.encode("ascii")
+            a_pFirmwareVersion[:14] = self.firmware_version.encode("ascii")
+            a_pLibVersion[:13] = self.library_version.encode("ascii")
             return 0
 
-        config['return_value.AVS_GetVersionInfo.side_effect'] = mock_getVersionInfo
+        config["return_value.AVS_GetVersionInfo.side_effect"] = mock_getVersionInfo
 
         def mock_getAnalogIn(handle, a_AnalogInId, a_pAnalogIn):
             """Return a fake temperature measurement."""
@@ -98,29 +105,29 @@ class AvsSimulator:
                 a_pAnalogIn.contents.value = self.tec_voltage
             return 0
 
-        config['return_value.AVS_GetAnalogIn.side_effect'] = mock_getAnalogIn
+        config["return_value.AVS_GetAnalogIn.side_effect"] = mock_getAnalogIn
 
         def mock_getNumPixels(handle, a_pNumPixels):
             a_pNumPixels.contents.value = self.n_pixels
             return 0
 
         self.wavelength = np.arange(0, self.n_pixels)
-        config['return_value.AVS_GetNumPixels.side_effect'] = mock_getNumPixels
+        config["return_value.AVS_GetNumPixels.side_effect"] = mock_getNumPixels
 
         def mock_getLambda(handle, a_pWavelength):
             a_pWavelength[:] = self.wavelength
             return 0
 
-        config['return_value.AVS_GetLambda.side_effect'] = mock_getLambda
+        config["return_value.AVS_GetLambda.side_effect"] = mock_getLambda
 
         # successful init() and updateUSBDevices() return the number of devices
-        config['return_value.AVS_Init.return_value'] = self.n_devices
-        config['return_value.AVS_UpdateUSBDevices.return_value'] = self.n_devices
+        config["return_value.AVS_Init.return_value"] = self.n_devices
+        config["return_value.AVS_UpdateUSBDevices.return_value"] = self.n_devices
 
         # successful activate() returns the handle of the connected device
-        config['return_value.AVS_Activate.return_value'] = self.handle
+        config["return_value.AVS_Activate.return_value"] = self.handle
         # successful disconnect() returns True
-        config['return_value.AVS_Deactivate.return_value'] = True
+        config["return_value.AVS_Deactivate.return_value"] = True
 
         self.measure_config_sent = None
 
@@ -129,13 +136,13 @@ class AvsSimulator:
             self.measure_config_sent = a_pMeasConfig
             return 0
 
-        config['return_value.AVS_PrepareMeasure.side_effect'] = mock_prepareMeasure
+        config["return_value.AVS_PrepareMeasure.side_effect"] = mock_prepareMeasure
 
         # Measure doesn't have any obvious effects.
-        config['return_value.AVS_Measure.return_value'] = 0
+        config["return_value.AVS_Measure.return_value"] = 0
 
         # Require four polls of the device before a measurement is ready
-        config['return_value.AVS_PollScan.side_effect'] = [0, 0, 0, 1]
+        config["return_value.AVS_PollScan.side_effect"] = [0, 0, 0, 1]
 
         self.spectrum = np.arange(0, self.n_pixels) * 2
 
@@ -143,10 +150,10 @@ class AvsSimulator:
             a_pSpectrum[:] = self.spectrum
             return 0
 
-        config['return_value.AVS_GetScopeData.side_effect'] = mock_getScopeData
+        config["return_value.AVS_GetScopeData.side_effect"] = mock_getScopeData
 
         # StopMeasure doesn't have any obvious effects.
-        config['return_value.AVS_StopMeasure.return_value'] = 0
+        config["return_value.AVS_StopMeasure.return_value"] = 0
 
         self.patcher = unittest.mock.patch("ctypes.CDLL", **config)
 

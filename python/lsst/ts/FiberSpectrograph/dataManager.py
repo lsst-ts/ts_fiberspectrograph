@@ -39,6 +39,7 @@ FORMAT_VERSION = 1
 class SpectrographData:
     """Class to hold data and metadata from a fiber spectrograph.
     """
+
     wavelength: astropy.units.Quantity
     """The wavelength array produced by the instrument."""
     spectrum: np.ndarray
@@ -109,7 +110,9 @@ class DataManager:
         # TODO: this writeto(file) block should be removed once we have a
         # working LFA API to send data to.
         if self.outpath is not None:
-            filename = os.path.join(self.outpath, f"{self.instrument}_{data.date_begin.tai.fits}.fits")
+            filename = os.path.join(
+                self.outpath, f"{self.instrument}_{data.date_begin.tai.fits}.fits"
+            )
             hdulist.writeto(filename, checksum=True)
             return filename
         else:
@@ -120,18 +123,18 @@ class DataManager:
         hdr = astropy.io.fits.Header()
         # TODO: it would be good to include the dataclass docstrings
         # as comments on each of these, but pydoc can't see them.
-        hdr['FORMAT_V'] = FORMAT_VERSION
-        hdr['INSTRUME'] = self.instrument
-        hdr['ORIGIN'] = self.origin
-        hdr['DETSIZE'] = data.n_pixels
-        hdr['DATE-BEG'] = astropy.time.Time(data.date_begin).tai.fits
-        hdr['DATE-END'] = astropy.time.Time(data.date_end).tai.fits
-        hdr['EXPTIME'] = data.duration
-        hdr['TIMESYS'] = 'TAI'
-        hdr['IMGTYPE'] = data.type
-        hdr['SOURCE'] = data.source
-        hdr['TEMP_SET'] = data.temperature_setpoint.to_value(u.deg_C)
-        hdr['CCDTEMP'] = data.temperature.to_value(u.deg_C)
+        hdr["FORMAT_V"] = FORMAT_VERSION
+        hdr["INSTRUME"] = self.instrument
+        hdr["ORIGIN"] = self.origin
+        hdr["DETSIZE"] = data.n_pixels
+        hdr["DATE-BEG"] = astropy.time.Time(data.date_begin).tai.fits
+        hdr["DATE-END"] = astropy.time.Time(data.date_end).tai.fits
+        hdr["EXPTIME"] = data.duration
+        hdr["TIMESYS"] = "TAI"
+        hdr["IMGTYPE"] = data.type
+        hdr["SOURCE"] = data.source
+        hdr["TEMP_SET"] = data.temperature_setpoint.to_value(u.deg_C)
+        hdr["CCDTEMP"] = data.temperature.to_value(u.deg_C)
 
         # WCS headers - Use -TAB WCS definition
         wcs_cards = [
@@ -144,7 +147,7 @@ class DataManager:
             f"CUNIT1  = '{data.wavelength.unit.name:8s}'           / Units for axis 1",
             f"PV1_1   = {self.wcs_table_ver:20d} / EXTVER  of bintable extension for -TAB arrays",
             f"PS1_0   = '{self.wcs_table_name:8s}'           / EXTNAME of bintable extension for -TAB arrays",
-            f"PS1_1   = '{self.wcs_column_name:8s}'         / Wavelength coordinate array"
+            f"PS1_1   = '{self.wcs_column_name:8s}'         / Wavelength coordinate array",
         ]
         for c in wcs_cards:
             hdr.append(astropy.io.fits.Card.fromstring(c))
@@ -154,7 +157,9 @@ class DataManager:
     def make_primary_hdu(self, data):
         """Return the primary HDU built from SpectrographData."""
 
-        hdu = astropy.io.fits.PrimaryHDU(data=data.spectrum, header=self.make_fits_header(data))
+        hdu = astropy.io.fits.PrimaryHDU(
+            data=data.spectrum, header=self.make_fits_header(data)
+        )
         return hdu
 
     def make_wavelength_hdu(self, data):

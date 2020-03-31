@@ -34,6 +34,7 @@ from lsst.ts.FiberSpectrograph import SpectrographData, DataManager
 class TestDataManager(unittest.TestCase):
     """Tests of the data management API for the fiber spectrograph CSC.
     """
+
     def setUp(self):
         self.instrument = "TestBlue"
         self.origin = "Not a real CSC"
@@ -41,41 +42,47 @@ class TestDataManager(unittest.TestCase):
         self.wavelength = np.linspace(300, 1000, self.n_pixels, dtype=np.float64) * u.nm
         self.spectrum = np.random.random(self.n_pixels)
         self.duration = 2.5
-        self.time_str = '1999-01-01T00:00:00.000'
-        self.date_begin = astropy.time.Time(self.time_str, scale='tai')
-        self.date_end = self.date_begin + astropy.time.TimeDelta(self.duration, format='sec')
+        self.time_str = "1999-01-01T00:00:00.000"
+        self.date_begin = astropy.time.Time(self.time_str, scale="tai")
+        self.date_end = self.date_begin + astropy.time.TimeDelta(
+            self.duration, format="sec"
+        )
         self.temperature = -273 * u.deg_C
         self.temperature_setpoint = -274 * u.deg_C
         self.type = "totally real data"
         self.source = "blacklight"
-        self.data = SpectrographData(wavelength=self.wavelength,
-                                     spectrum=self.spectrum,
-                                     duration=self.duration,
-                                     date_begin=self.date_begin,
-                                     date_end=self.date_end,
-                                     type=self.type,
-                                     source=self.source,
-                                     temperature=self.temperature,
-                                     temperature_setpoint=self.temperature_setpoint,
-                                     n_pixels=self.n_pixels)
+        self.data = SpectrographData(
+            wavelength=self.wavelength,
+            spectrum=self.spectrum,
+            duration=self.duration,
+            date_begin=self.date_begin,
+            date_end=self.date_end,
+            type=self.type,
+            source=self.source,
+            temperature=self.temperature,
+            temperature_setpoint=self.temperature_setpoint,
+            n_pixels=self.n_pixels,
+        )
 
-        self.expected_header = {'FORMAT_V': 1,
-                                'INSTRUME': self.instrument,
-                                'ORIGIN': self.origin,
-                                'DETSIZE': self.n_pixels,
-                                'DATE-BEG': '1999-01-01T00:00:00.000',
-                                'DATE-END': '1999-01-01T00:00:02.500',
-                                'EXPTIME': self.duration,
-                                'TIMESYS': 'TAI',
-                                'IMGTYPE': self.type,
-                                'SOURCE': self.source,
-                                'TEMP_SET': self.temperature_setpoint.to_value(u.deg_C),
-                                'CCDTEMP': self.temperature.to_value(u.deg_C,),
-                                # WCS headers
-                                'CTYPE1': 'WAVE-TAB',
-                                'PS1_0': 'WCS-TAB',
-                                'PS1_1': 'wavelength',
-                                'CUNIT1': 'nm'}
+        self.expected_header = {
+            "FORMAT_V": 1,
+            "INSTRUME": self.instrument,
+            "ORIGIN": self.origin,
+            "DETSIZE": self.n_pixels,
+            "DATE-BEG": "1999-01-01T00:00:00.000",
+            "DATE-END": "1999-01-01T00:00:02.500",
+            "EXPTIME": self.duration,
+            "TIMESYS": "TAI",
+            "IMGTYPE": self.type,
+            "SOURCE": self.source,
+            "TEMP_SET": self.temperature_setpoint.to_value(u.deg_C),
+            "CCDTEMP": self.temperature.to_value(u.deg_C,),
+            # WCS headers
+            "CTYPE1": "WAVE-TAB",
+            "PS1_0": "WCS-TAB",
+            "PS1_1": "wavelength",
+            "CUNIT1": "nm",
+        }
 
     def check_header(self, header):
         """Check that all expected keys are in the header."""
@@ -90,7 +97,9 @@ class TestDataManager(unittest.TestCase):
         np.testing.assert_array_equal(wavelengths, self.wavelength)
 
         # Ensure that we have a quantity compatible with meters
-        self.assertEqual(wavelengths.to(u.m).unit.name, "m", "Wavelengths array converted to meters")
+        self.assertEqual(
+            wavelengths.to(u.m).unit.name, "m", "Wavelengths array converted to meters"
+        )
 
         if expected_unit is not None:
             self.assertEqual(wavelengths.unit.name, expected_unit)
@@ -114,7 +123,7 @@ class TestDataManager(unittest.TestCase):
         manager = DataManager(instrument=self.instrument, origin=self.origin)
         hdu = manager.make_wavelength_hdu(self.data)
         # Need first wavelength from first row
-        wavelengths = QTable.read(hdu)['wavelength'][0]
+        wavelengths = QTable.read(hdu)["wavelength"][0]
         self.check_wavelength_data(wavelengths)
         # The wavelength data should not be a Primary HDU.
         self.assertNotIsInstance(hdu, astropy.io.fits.PrimaryHDU)
@@ -128,7 +137,9 @@ class TestDataManager(unittest.TestCase):
         we've sent things to the correct s3 store.
         """
         with tempfile.TemporaryDirectory() as path:
-            manager = DataManager(instrument=self.instrument, origin=self.origin, outpath=path)
+            manager = DataManager(
+                instrument=self.instrument, origin=self.origin, outpath=path
+            )
             output = manager(self.data)
             expected_path = os.path.join(path, "TestBlue_1999-01-01T00:00:00.000.fits")
             self.assertEqual(output, expected_path)
@@ -137,14 +148,14 @@ class TestDataManager(unittest.TestCase):
                 np.testing.assert_array_equal(hdulist[0].data, self.spectrum)
 
                 # Ensure the checksums are written, but let astropy verify them
-                self.assertIn('CHECKSUM', hdulist[0].header)
-                self.assertIn('DATASUM', hdulist[0].header)
-                self.assertIn('CHECKSUM', hdulist[1].header)
-                self.assertIn('DATASUM', hdulist[1].header)
+                self.assertIn("CHECKSUM", hdulist[0].header)
+                self.assertIn("DATASUM", hdulist[0].header)
+                self.assertIn("CHECKSUM", hdulist[1].header)
+                self.assertIn("DATASUM", hdulist[1].header)
 
                 # Check that the headers are consistent with WCS -TAB
                 primary_header = hdulist[0].header
-                self.assertEqual(primary_header['CTYPE1'], "WAVE-TAB")
+                self.assertEqual(primary_header["CTYPE1"], "WAVE-TAB")
                 wcs_tab_name = primary_header["PS1_0"]
                 wcs_tab_extver = primary_header["PV1_1"]
                 wave_col_name = primary_header["PS1_1"]
@@ -152,7 +163,9 @@ class TestDataManager(unittest.TestCase):
                 self.assertEqual(len(wave_table), 1)
                 # Only one row so select that one explicitly
                 wavelengths = wave_table[wave_col_name][0]
-                self.check_wavelength_data(wavelengths, expected_unit=primary_header["CUNIT1"])
+                self.check_wavelength_data(
+                    wavelengths, expected_unit=primary_header["CUNIT1"]
+                )
 
 
 if __name__ == "__main__":

@@ -42,13 +42,17 @@ LONG_TIMEOUT = 20  # timeout for starting SAL components (sec)
 class Harness:
     """An configurable async context manager for setting up and starting a CSC,
     and any other pieces it needs to talk to."""
+
     def __init__(self, initial_state, index=-1, outpath=None):
         self.csc = FiberSpectrographCsc(
             initial_state=initial_state,
             initial_simulation_mode=0,
             index=index,
-            outpath=outpath)
-        self.remote = salobj.Remote(domain=self.csc.domain, name="FiberSpectrograph", index=index)
+            outpath=outpath,
+        )
+        self.remote = salobj.Remote(
+            domain=self.csc.domain, name="FiberSpectrograph", index=index
+        )
 
     async def __aenter__(self):
         await self.csc.start_task
@@ -74,6 +78,7 @@ class TestFiberSpectrographCsc(asynctest.TestCase):
     the functionality of turning simulation mode on and off; we want to treat
     the use of `unittest.mock` by the CSC simulator as an internal detail.
     """
+
     def setUp(self):
         salobj.set_random_lsst_dds_domain()
         self.patcher = AvsSimulator()
@@ -111,7 +116,9 @@ class TestFiberSpectrographCsc(asynctest.TestCase):
             # we only should try to activate once in this whole sequence
             self.patch.return_value.AVS_Activate.assert_called_once()
             # Switching to DISABLED should output the deviceInfo event
-            state = await harness.remote.evt_deviceInfo.next(flush=False, timeout=STD_TIMEOUT)
+            state = await harness.remote.evt_deviceInfo.next(
+                flush=False, timeout=STD_TIMEOUT
+            )
             self.assertEqual(state.npixels, self.patcher.n_pixels)
             self.assertEqual(state.fpgaVersion, self.patcher.fpga_version)
             self.assertEqual(state.firmwareVersion, self.patcher.firmware_version)
@@ -150,14 +157,17 @@ class TestFiberSpectrographCsc(asynctest.TestCase):
         n_devices = 2
         index = 3
         serial_number = serial_numbers[index]  # this corresponds to ATBroad
-        id1 = AvsIdentity(bytes(str(serial_number), "ascii"),
-                          b"Fake Spectrograph 2",
-                          AvsDeviceStatus.USB_AVAILABLE.value)
+        id1 = AvsIdentity(
+            bytes(str(serial_number), "ascii"),
+            b"Fake Spectrograph 2",
+            AvsDeviceStatus.USB_AVAILABLE.value,
+        )
 
         def mock_getList(a_listSize, a_pRequiredSize, a_pList):
             """Pretend that two devices are connected."""
             a_pList[:] = [self.patcher.id0, id1]
             return n_devices
+
         self.patch.return_value.AVS_GetList.side_effect = mock_getList
         self.patch.return_value.AVS_UpdateUSBDevices.return_value = n_devices
 
@@ -169,18 +179,26 @@ class TestFiberSpectrographCsc(asynctest.TestCase):
         """Test that exceptions raised when connecting cause a fault when
         switching the CSC from STANDBY to DISABLED.
         """
-        self.patch.return_value.AVS_Activate.return_value = AvsReturnCode.invalidHandle.value
+        self.patch.return_value.AVS_Activate.return_value = (
+            AvsReturnCode.invalidHandle.value
+        )
         async with Harness(initial_state=salobj.State.STANDBY) as harness:
             # Check that we are properly in STANDBY at the start
             await self.check_summaryState(harness.remote, salobj.State.STANDBY)
 
             msg = "Failed to connect"
-            with salobj.assertRaisesAckError(ack=salobj.SalRetCode.CMD_FAILED, result_contains=msg):
+            with salobj.assertRaisesAckError(
+                ack=salobj.SalRetCode.CMD_FAILED, result_contains=msg
+            ):
                 await harness.remote.cmd_start.start(timeout=STD_TIMEOUT)
             await self.check_summaryState(harness.remote, salobj.State.FAULT)
-            error = await harness.remote.evt_errorCode.next(flush=False, timeout=STD_TIMEOUT)
+            error = await harness.remote.evt_errorCode.next(
+                flush=False, timeout=STD_TIMEOUT
+            )
             self.assertIn("RuntimeError", error.errorReport)
-            self.assertIn("Invalid device handle; cannot activate device", error.errorReport)
+            self.assertIn(
+                "Invalid device handle; cannot activate device", error.errorReport
+            )
             self.assertIsNone(harness.csc.device)
 
     async def test_expose(self):
@@ -188,21 +206,29 @@ class TestFiberSpectrographCsc(asynctest.TestCase):
         emitted.
         """
         with tempfile.TemporaryDirectory() as path:
-            async with Harness(initial_state=salobj.State.ENABLED, outpath=path) as harness:
+            async with Harness(
+                initial_state=salobj.State.ENABLED, outpath=path
+            ) as harness:
                 # Check that we are properly in ENABLED at the start
                 await self.check_summaryState(harness.remote, salobj.State.ENABLED)
 
                 duration = 2  # seconds
-                task = asyncio.create_task(harness.remote.cmd_expose.set_start(timeout=STD_TIMEOUT+duration,
-                                                                               duration=duration))
-                await self.check_exposureState(harness.remote, ExposureState.INTEGRATING)
+                task = asyncio.create_task(
+                    harness.remote.cmd_expose.set_start(
+                        timeout=STD_TIMEOUT + duration, duration=duration
+                    )
+                )
+                await self.check_exposureState(
+                    harness.remote, ExposureState.INTEGRATING
+                )
                 # Wait for the exposure to finish.
                 await task
                 await self.check_exposureState(harness.remote, ExposureState.DONE)
 
                 # Check that the path appears in the output URI.
-                event = await harness.remote.evt_largeFileObjectAvailable.next(flush=False,
-                                                                               timeout=STD_TIMEOUT)
+                event = await harness.remote.evt_largeFileObjectAvailable.next(
+                    flush=False, timeout=STD_TIMEOUT
+                )
                 self.assertIn(path, event.url)
                 # Check that a file was written.
                 # TODO: change this to a `spulec/moto`-based unittest of the
@@ -212,16 +238,25 @@ class TestFiberSpectrographCsc(asynctest.TestCase):
                 # Check that out of range durations do not put us in FAULT,
                 # and do not change the exposure state.
                 duration = 1e-9  # seconds
-                with salobj.assertRaisesAckError(ack=salobj.SalRetCode.CMD_FAILED,
-                                                 result_contains="Exposure duration"):
-                    await asyncio.create_task(harness.remote.cmd_expose.set_start(timeout=STD_TIMEOUT,
-                                                                                  duration=duration))
+                with salobj.assertRaisesAckError(
+                    ack=salobj.SalRetCode.CMD_FAILED,
+                    result_contains="Exposure duration",
+                ):
+                    await asyncio.create_task(
+                        harness.remote.cmd_expose.set_start(
+                            timeout=STD_TIMEOUT, duration=duration
+                        )
+                    )
                 # No ExposureState message should have been emitted.
                 with self.assertRaises(asyncio.TimeoutError):
-                    await harness.remote.evt_exposureState.next(flush=False, timeout=STD_TIMEOUT)
+                    await harness.remote.evt_exposureState.next(
+                        flush=False, timeout=STD_TIMEOUT
+                    )
                 # We should not have left ENABLED.
                 with self.assertRaises(asyncio.TimeoutError):
-                    await harness.remote.evt_exposureState.next(flush=False, timeout=STD_TIMEOUT)
+                    await harness.remote.evt_exposureState.next(
+                        flush=False, timeout=STD_TIMEOUT
+                    )
 
     async def test_expose_fails(self):
         """Test that a failed exposure puts us in the FAULT state, which will
@@ -231,21 +266,33 @@ class TestFiberSpectrographCsc(asynctest.TestCase):
         # the device) return an error code, so that the device controller
         # raises an exception inside `expose()`.
         self.patch.return_value.AVS_GetScopeData.side_effect = None
-        self.patch.return_value.AVS_GetScopeData.return_value = AvsReturnCode.ERR_INVALID_MEAS_DATA.value
+        self.patch.return_value.AVS_GetScopeData.return_value = (
+            AvsReturnCode.ERR_INVALID_MEAS_DATA.value
+        )
         async with Harness(initial_state=salobj.State.ENABLED) as harness:
             # Check that we are properly in ENABLED at the start.
             await self.check_summaryState(harness.remote, salobj.State.ENABLED)
 
             msg = "Failed to take exposure"
-            with salobj.assertRaisesAckError(ack=salobj.SalRetCode.CMD_FAILED, result_contains=msg):
-                await harness.remote.cmd_expose.set_start(timeout=STD_TIMEOUT, duration=.5)
+            with salobj.assertRaisesAckError(
+                ack=salobj.SalRetCode.CMD_FAILED, result_contains=msg
+            ):
+                await harness.remote.cmd_expose.set_start(
+                    timeout=STD_TIMEOUT, duration=0.5
+                )
             # The exposure state should be Integrating during the exposure.
             await self.check_exposureState(harness.remote, ExposureState.INTEGRATING)
             # The exposure state should be Failed after the exposure has
             # completed, because GetScopeData returned an error code.
             await self.check_summaryState(harness.remote, salobj.State.FAULT)
-            error = await harness.remote.evt_errorCode.next(flush=False, timeout=STD_TIMEOUT)
-            errorMsg = str(AvsReturnError(AvsReturnCode.ERR_INVALID_MEAS_DATA.value, "GetScopeData"))
+            error = await harness.remote.evt_errorCode.next(
+                flush=False, timeout=STD_TIMEOUT
+            )
+            errorMsg = str(
+                AvsReturnError(
+                    AvsReturnCode.ERR_INVALID_MEAS_DATA.value, "GetScopeData"
+                )
+            )
             self.assertIn(errorMsg, error.errorReport)
             # Going into FAULT should close the device connection.
             self.assertIsNone(harness.csc.device)
@@ -265,8 +312,12 @@ class TestFiberSpectrographCsc(asynctest.TestCase):
 
             msg = "Timeout waiting for exposure"
             duration = 0.1
-            with salobj.assertRaisesAckError(ack=salobj.SalRetCode.CMD_FAILED, result_contains=msg):
-                await harness.remote.cmd_expose.set_start(timeout=STD_TIMEOUT+duration, duration=duration)
+            with salobj.assertRaisesAckError(
+                ack=salobj.SalRetCode.CMD_FAILED, result_contains=msg
+            ):
+                await harness.remote.cmd_expose.set_start(
+                    timeout=STD_TIMEOUT + duration, duration=duration
+                )
             # The exposure state should be Integrating during the exposure.
             await self.check_exposureState(harness.remote, ExposureState.INTEGRATING)
             await self.check_exposureState(harness.remote, ExposureState.TIMEDOUT)
@@ -281,8 +332,11 @@ class TestFiberSpectrographCsc(asynctest.TestCase):
             await self.check_summaryState(harness.remote, salobj.State.ENABLED)
 
             duration = 5  # seconds
-            task = asyncio.create_task(harness.remote.cmd_expose.set_start(timeout=STD_TIMEOUT + duration,
-                                                                           duration=duration))
+            task = asyncio.create_task(
+                harness.remote.cmd_expose.set_start(
+                    timeout=STD_TIMEOUT + duration, duration=duration
+                )
+            )
             # Wait for the exposure to start integrating.
             await self.check_exposureState(harness.remote, ExposureState.INTEGRATING)
             await harness.remote.cmd_cancelExposure.set_start(timeout=STD_TIMEOUT)
@@ -305,7 +359,9 @@ class TestFiberSpectrographCsc(asynctest.TestCase):
 
             setsm_data = harness.remote.cmd_setSimulationMode.DataType()
             setsm_data.mode = 1
-            await harness.remote.cmd_setSimulationMode.start(setsm_data, timeout=STD_TIMEOUT)
+            await harness.remote.cmd_setSimulationMode.start(
+                setsm_data, timeout=STD_TIMEOUT
+            )
             # nothing should happen until we switch to DISABLED
             self.assertIsNone(harness.csc.device)
 
@@ -330,7 +386,9 @@ class TestFiberSpectrographCsc(asynctest.TestCase):
             # Turning the simulator off should give us the test patch again.
             setsm_data = harness.remote.cmd_setSimulationMode.DataType()
             setsm_data.mode = 0
-            await harness.remote.cmd_setSimulationMode.start(setsm_data, timeout=STD_TIMEOUT)
+            await harness.remote.cmd_setSimulationMode.start(
+                setsm_data, timeout=STD_TIMEOUT
+            )
             self.assertIsNone(harness.csc.device)
             await harness.remote.cmd_start.start(timeout=STD_TIMEOUT)
             await self.check_summaryState(harness.remote, salobj.State.DISABLED)
@@ -348,9 +406,11 @@ class TestFiberSpectrographCsc(asynctest.TestCase):
         async with Harness(initial_state=salobj.State.DISABLED) as harness:
             # Check that we are properly in STANDBY at the start
             await self.check_summaryState(harness.remote, salobj.State.DISABLED)
-            await self.check_temperature(harness.remote,
-                                         self.patcher.temperature,
-                                         self.patcher.temperature_setpoint)
+            await self.check_temperature(
+                harness.remote,
+                self.patcher.temperature,
+                self.patcher.temperature_setpoint,
+            )
 
             # If we leave DISABLED, the telemetry loop should be closed.
             await harness.remote.cmd_standby.start(timeout=STD_TIMEOUT)
@@ -365,18 +425,26 @@ class TestFiberSpectrographCsc(asynctest.TestCase):
         exe_name = "run_FiberSpectrograph.py"
         exe_path = shutil.which(exe_name)
         if exe_path is None:
-            self.fail(f"Could not find bin script {exe_name}; did you setup and scons this package?")
+            self.fail(
+                f"Could not find bin script {exe_name}; did you setup and scons this package?"
+            )
 
         process = await asyncio.create_subprocess_exec(exe_name, str(index))
         try:
             async with salobj.Domain() as domain:
-                remote = salobj.Remote(domain=domain, name="FiberSpectrograph", index=index)
-                summaryState_data = await remote.evt_summaryState.next(flush=False, timeout=LONG_TIMEOUT)
+                remote = salobj.Remote(
+                    domain=domain, name="FiberSpectrograph", index=index
+                )
+                summaryState_data = await remote.evt_summaryState.next(
+                    flush=False, timeout=LONG_TIMEOUT
+                )
                 self.assertEqual(summaryState_data.summaryState, salobj.State.STANDBY)
 
                 ack = await remote.cmd_exitControl.start(timeout=STD_TIMEOUT)
                 self.assertEqual(ack.ack, salobj.SalRetCode.CMD_COMPLETE)
-                summaryState_data = await remote.evt_summaryState.next(flush=False, timeout=LONG_TIMEOUT)
+                summaryState_data = await remote.evt_summaryState.next(
+                    flush=False, timeout=LONG_TIMEOUT
+                )
                 self.assertEqual(summaryState_data.summaryState, salobj.State.OFFLINE)
 
                 await asyncio.wait_for(process.wait(), 5)
