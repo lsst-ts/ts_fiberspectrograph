@@ -344,56 +344,6 @@ class TestFiberSpectrographCsc(asynctest.TestCase):
                 await task
             await self.check_exposureState(harness.remote, ExposureState.CANCELLED)
 
-    async def test_simulator(self):
-        """Test that we can turn the simulation mode on and off.
-
-        We know we are in simulation mode if the device "library" loaded by
-        the device is a different mock than `self.patch`, because the simulator
-        that the CSC holds is independent of the mock patch that is created
-        in `setUp` for these tests.
-        """
-        async with Harness(initial_state=salobj.State.STANDBY) as harness:
-            # Check that we are properly in STANDBY at the start
-            await self.check_summaryState(harness.remote, salobj.State.STANDBY)
-            self.assertIsNone(harness.csc.device)
-
-            setsm_data = harness.remote.cmd_setSimulationMode.DataType()
-            setsm_data.mode = 1
-            await harness.remote.cmd_setSimulationMode.start(
-                setsm_data, timeout=STD_TIMEOUT
-            )
-            # nothing should happen until we switch to DISABLED
-            self.assertIsNone(harness.csc.device)
-
-            await harness.remote.cmd_start.start(timeout=STD_TIMEOUT)
-            await self.check_summaryState(harness.remote, salobj.State.DISABLED)
-            # The CSC's internal simulator should be different from our mock.
-            self.assertNotEqual(self.patch.return_value, harness.csc.device.libavs)
-
-            # It should remain different in ENABLED, and back to DISABLED
-            await harness.remote.cmd_enable.start(timeout=STD_TIMEOUT)
-            await self.check_summaryState(harness.remote, salobj.State.ENABLED)
-            self.assertNotEqual(self.patch.return_value, harness.csc.device.libavs)
-            await harness.remote.cmd_disable.start(timeout=STD_TIMEOUT)
-            await self.check_summaryState(harness.remote, salobj.State.DISABLED)
-            self.assertNotEqual(self.patch.return_value, harness.csc.device.libavs)
-
-            # in STANDBY, there should be no connected device
-            await harness.remote.cmd_standby.start(timeout=STD_TIMEOUT)
-            await self.check_summaryState(harness.remote, salobj.State.STANDBY)
-            self.assertIsNone(harness.csc.device)
-
-            # Turning the simulator off should give us the test patch again.
-            setsm_data = harness.remote.cmd_setSimulationMode.DataType()
-            setsm_data.mode = 0
-            await harness.remote.cmd_setSimulationMode.start(
-                setsm_data, timeout=STD_TIMEOUT
-            )
-            self.assertIsNone(harness.csc.device)
-            await harness.remote.cmd_start.start(timeout=STD_TIMEOUT)
-            await self.check_summaryState(harness.remote, salobj.State.DISABLED)
-            self.assertEqual(self.patch.return_value, harness.csc.device.libavs)
-
     async def test_telemetry(self):
         """Test that telemetry is emitted in the correct states.
 
