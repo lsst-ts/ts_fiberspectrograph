@@ -11,6 +11,6 @@ _g = globals()
 _g.update(
     build_package_configs(
         project_name="ts_FiberSpectrograph",
-        version=lsst.ts.FiberSpectrograph.version.__version__,
+        version=lsst.ts.FiberSpectrograph.__version__,
     )
 )
