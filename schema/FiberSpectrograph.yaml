@@ -5,10 +5,11 @@ title: FiberSpectrograph v1
 description: Schema for FiberSpectrograph configuration files
 type: object
 properties:
- fitsrfilepath:
-    description: relative path of folder on disk where fits file will be stored relative to the root of module
+  s3bucketsuffix:
+    description: Large File Annex S3 bucket name suffix. The full bucket name is f"rubinos-{s3bucketsuffix}".
     type: string
-    default: "fits/data"
+    default: "summit"
+    pattern: "^[a-z0-9][-.a-z0-9]*$"
 required:
-  - fitsrfilepath
+  - s3bucketsuffix
 additionalProperties: false
