@@ -50,8 +50,8 @@ class FiberSpectrographCsc(salobj.BaseCsc):
         The initial state of the CSC. This is provided for unit testing,
         as real CSCs should start up in `lsst.ts.salobj.StateSTANDBY`,
         the default.
-    initial_simulation_mode : `int`, optional
-        Initial simulation mode.
+    simulation_mode : `int`, optional
+        Simulation mode.
     outpath : `str`, optional
         Write output files to this path.
         TODO: this is temporary until we have a working LFA.
@@ -80,7 +80,7 @@ class FiberSpectrographCsc(salobj.BaseCsc):
     def __init__(
         self,
         initial_state=salobj.State.STANDBY,
-        initial_simulation_mode=0,
+        simulation_mode=0,
         outpath=None,
         *,
         index,
@@ -101,7 +101,7 @@ class FiberSpectrographCsc(salobj.BaseCsc):
             "FiberSpectrograph",
             index=index,
             initial_state=initial_state,
-            initial_simulation_mode=initial_simulation_mode,
+            simulation_mode=simulation_mode,
         )
 
     async def handle_summary_state(self):

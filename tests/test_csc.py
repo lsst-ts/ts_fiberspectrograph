@@ -46,7 +46,7 @@ class Harness:
     def __init__(self, initial_state, index=-1, outpath=None):
         self.csc = FiberSpectrographCsc(
             initial_state=initial_state,
-            initial_simulation_mode=0,
+            simulation_mode=0,
             index=index,
             outpath=outpath,
         )
