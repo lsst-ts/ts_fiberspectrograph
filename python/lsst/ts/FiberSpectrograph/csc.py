@@ -294,3 +294,20 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
         """
         self.assert_enabled()
         self.device.stop_exposure()
+
+    @classmethod
+    def add_arguments(cls, parser):
+        super(FiberSpectrographCsc, cls).add_arguments(parser)
+        parser.add_argument(
+            "-s",
+            "--simulate",
+            type=int,
+            help="Simulation mode: a bitmask of 2 values: \n"
+            "1: simulate the spectrograph; "
+            "2: simulate the s3 large file annex s3 server",
+        )
+
+    @classmethod
+    def add_kwargs_from_args(cls, args, kwargs):
+        super(FiberSpectrographCsc, cls).add_kwargs_from_args(args, kwargs)
+        kwargs["simulation_mode"] = args.simulate

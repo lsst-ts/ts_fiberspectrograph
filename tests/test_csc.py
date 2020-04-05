@@ -379,12 +379,15 @@ class TestFiberSpectrographCsc(salobj.BaseCscTestCase, asynctest.TestCase):
             await self.assert_next_summary_state(salobj.State.STANDBY)
             self.assertTrue(self.csc.telemetry_loop_task.done())
 
-    async def test_run(self):
-        """Test running the CSC commandline script, by checking that it starts
+    async def test_bin_script(self):
+        """Test the CSC command line script, by checking that it starts
         in STANDBY and can be commanded to exit.
         """
         await self.check_bin_script(
-            name="FiberSpectrograph", index=-1, exe_name="run_FiberSpectrograph.py"
+            name="FiberSpectrograph",
+            index=-1,
+            exe_name="run_FiberSpectrograph.py",
+            cmdline_args=("-s", "3"),
         )
 
 
