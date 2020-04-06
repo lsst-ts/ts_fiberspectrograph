@@ -1,6 +1,6 @@
 # This file is part of ts_FiberSpectrograph.
 #
-# Developed for the LSST Data Management System.
+# Developed for the LSST Telescope and Site Systems.
 # This product includes software developed by the LSST Project
 # (https://www.lsst.org).
 # See the COPYRIGHT file at the top-level directory of this distribution
@@ -22,7 +22,6 @@
 __all__ = ["SpectrographData", "DataManager"]
 
 import dataclasses
-import os.path
 
 import astropy.io.fits
 import astropy.time
@@ -39,6 +38,7 @@ FORMAT_VERSION = 1
 class SpectrographData:
     """Class to hold data and metadata from a fiber spectrograph.
     """
+
     wavelength: astropy.units.Quantity
     """The wavelength array produced by the instrument."""
     spectrum: np.ndarray
@@ -63,7 +63,7 @@ class SpectrographData:
 
 
 class DataManager:
-    """A data packager and uploader for output from the Fiber Spectrograph CSC.
+    """A data packager from the Fiber Spectrograph CSC.
 
     Attributes
     ----------
@@ -71,10 +71,6 @@ class DataManager:
         The name of the instrument taking the data.
     origin : `str`
         The name of the program that produced this data.
-    outpath : `str`, optional
-        A path to write the FITS files to.
-        **WARNING**: this argument will be removed once the API for writing
-        to the LFA becomes available in salobj; do not rely on it.
     """
 
     wcs_table_name = "WCS-TAB"
@@ -84,54 +80,44 @@ class DataManager:
     wcs_column_name = "wavelength"
     """Name of the table column containing the wavelength information."""
 
-    def __init__(self, instrument, origin, outpath=None):
+    def __init__(self, instrument, origin):
         self.instrument = instrument
         self.origin = origin
-        self.outpath = outpath
 
-    def __call__(self, data):
+    def make_hdulist(self, data):
         """Generate a FITS hdulist built from SpectrographData.
 
         Parameters
         ----------
         data : `SpectrographData`
-            The data to build the FITS output with.
+            The data from which to build the FITS hdulist.
 
         Returns
         -------
-        uri : `str`
-            The file path or other identifier (e.g. s3 store) for where the
-            data was sent.
+        hdulist : `astropy.io.fits.HDUList`
+            The FITS hdulist.
         """
         hdu1 = self.make_primary_hdu(data)
         hdu2 = self.make_wavelength_hdu(data)
-        hdulist = astropy.io.fits.HDUList([hdu1, hdu2])
-        # TODO: this writeto(file) block should be removed once we have a
-        # working LFA API to send data to.
-        if self.outpath is not None:
-            filename = os.path.join(self.outpath, f"{self.instrument}_{data.date_begin.tai.fits}.fits")
-            hdulist.writeto(filename, checksum=True)
-            return filename
-        else:
-            return None
+        return astropy.io.fits.HDUList([hdu1, hdu2])
 
     def make_fits_header(self, data):
         """Return a FITS header built from SpectrographData."""
         hdr = astropy.io.fits.Header()
         # TODO: it would be good to include the dataclass docstrings
         # as comments on each of these, but pydoc can't see them.
-        hdr['FORMAT_V'] = FORMAT_VERSION
-        hdr['INSTRUME'] = self.instrument
-        hdr['ORIGIN'] = self.origin
-        hdr['DETSIZE'] = data.n_pixels
-        hdr['DATE-BEG'] = astropy.time.Time(data.date_begin).tai.fits
-        hdr['DATE-END'] = astropy.time.Time(data.date_end).tai.fits
-        hdr['EXPTIME'] = data.duration
-        hdr['TIMESYS'] = 'TAI'
-        hdr['IMGTYPE'] = data.type
-        hdr['SOURCE'] = data.source
-        hdr['TEMP_SET'] = data.temperature_setpoint.to_value(u.deg_C)
-        hdr['CCDTEMP'] = data.temperature.to_value(u.deg_C)
+        hdr["FORMAT_V"] = FORMAT_VERSION
+        hdr["INSTRUME"] = self.instrument
+        hdr["ORIGIN"] = self.origin
+        hdr["DETSIZE"] = data.n_pixels
+        hdr["DATE-BEG"] = astropy.time.Time(data.date_begin).tai.fits
+        hdr["DATE-END"] = astropy.time.Time(data.date_end).tai.fits
+        hdr["EXPTIME"] = data.duration
+        hdr["TIMESYS"] = "TAI"
+        hdr["IMGTYPE"] = data.type
+        hdr["SOURCE"] = data.source
+        hdr["TEMP_SET"] = data.temperature_setpoint.to_value(u.deg_C)
+        hdr["CCDTEMP"] = data.temperature.to_value(u.deg_C)
 
         # WCS headers - Use -TAB WCS definition
         wcs_cards = [
@@ -144,7 +130,7 @@ class DataManager:
             f"CUNIT1  = '{data.wavelength.unit.name:8s}'           / Units for axis 1",
             f"PV1_1   = {self.wcs_table_ver:20d} / EXTVER  of bintable extension for -TAB arrays",
             f"PS1_0   = '{self.wcs_table_name:8s}'           / EXTNAME of bintable extension for -TAB arrays",
-            f"PS1_1   = '{self.wcs_column_name:8s}'         / Wavelength coordinate array"
+            f"PS1_1   = '{self.wcs_column_name:8s}'         / Wavelength coordinate array",
         ]
         for c in wcs_cards:
             hdr.append(astropy.io.fits.Card.fromstring(c))
@@ -154,7 +140,9 @@ class DataManager:
     def make_primary_hdu(self, data):
         """Return the primary HDU built from SpectrographData."""
 
-        hdu = astropy.io.fits.PrimaryHDU(data=data.spectrum, header=self.make_fits_header(data))
+        hdu = astropy.io.fits.PrimaryHDU(
+            data=data.spectrum, header=self.make_fits_header(data)
+        )
         return hdu
 
     def make_wavelength_hdu(self, data):

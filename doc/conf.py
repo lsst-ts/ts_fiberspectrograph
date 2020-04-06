@@ -8,6 +8,9 @@ import lsst.ts.FiberSpectrograph
 
 
 _g = globals()
-_g.update(build_package_configs(
-    project_name='ts_FiberSpectrograph',
-    version=lsst.ts.FiberSpectrograph.version.__version__))
+_g.update(
+    build_package_configs(
+        project_name="ts_FiberSpectrograph",
+        version=lsst.ts.FiberSpectrograph.__version__,
+    )
+)
