@@ -115,8 +115,6 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
     async def configure(self, config):
         # Make bucket name now, to validate config
         self.s3bucket_name = salobj.AsyncS3Bucket.make_bucket_name(
-            salname=self.salinfo.name,
-            salindexname=self.band_name,
             s3instance=config.s3instance,
         )
         self.config = config
@@ -255,7 +253,10 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
         fileobj.seek(0)
         date_begin = spec_data.date_begin
         key = self.s3bucket.make_key(
-            salname=self.salinfo.name, generator=self.generator_name, date=date_begin
+            salname=self.salinfo.name,
+            salindexname=self.band_name,
+            generator=self.generator_name,
+            date=date_begin,
         )
         try:
             await self.s3bucket.upload(fileobj=fileobj, key=key)
