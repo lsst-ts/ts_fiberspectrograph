@@ -211,7 +211,7 @@ class AvsFiberSpectrograph:
         if serial_number is None:
             if len(device_list) > 1:
                 raise RuntimeError(
-                    f"Multiple devices found, but no serial number specified."
+                    "Multiple devices found, but no serial number specified."
                     f" Attached devices: {device_list}"
                 )
             device = device_list[0]
