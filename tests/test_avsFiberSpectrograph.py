@@ -682,7 +682,7 @@ class TestAvsReturnError(unittest.TestCase):
         code = -9
         what = "invalid size test"
         err = AvsReturnError(code, what)
-        msg = f"Fatal Error <AvsReturnCode.ERR_INVALID_SIZE: -9> calling `invalid size test`"
+        msg = "Fatal Error <AvsReturnCode.ERR_INVALID_SIZE: -9> calling `invalid size test`"
         self.assertIn(msg, repr(err))
 
     def test_invalid_code(self):
@@ -690,7 +690,7 @@ class TestAvsReturnError(unittest.TestCase):
         code = -123456321
         what = "invalid code test"
         err = AvsReturnError(code, what)
-        msg = f"Unknown Error (-123456321) calling `invalid code test`; Please consult Avantes documentation"
+        msg = "Unknown Error (-123456321) calling `invalid code test`; Please consult Avantes documentation"
         self.assertIn(msg, repr(err))
 
 

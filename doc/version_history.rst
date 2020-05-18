@@ -1,10 +1,20 @@
 .. py:currentmodule:: lsst.ts.FiberSpectrograph
 
-.. _lsst.ts.FiberSpectrograph.revision_history:
+.. _lsst.ts.FiberSpectrograph.version_history:
 
-#####################################
-ts_FiberSpectrograph Revision History
-#####################################
+###############
+Version History
+###############
+
+v0.2.1
+======
+
+Changes:
+
+* Add ``tests/test_black.py`` to verify that files are formatted with black.
+  This requires ts_salobj 5.11 or later.
+* Fix f strings with no {}.
+* Update ``.travis.yml`` to remove ``sudo: false`` to github travis checks pass once again.
 
 v0.2.0
 ======
