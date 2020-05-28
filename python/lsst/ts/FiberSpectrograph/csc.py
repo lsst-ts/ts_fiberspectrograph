@@ -125,7 +125,7 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
             if self.s3bucket is None:
                 domock = self.simulation_mode & constants.SimulationMode.S3Server != 0
                 self.s3bucket = salobj.AsyncS3Bucket(
-                    name=self.s3bucket_name, domock=domock
+                    name=self.s3bucket_name, domock=domock, create=domock
                 )
             if self.device is None:
                 try:
@@ -257,6 +257,7 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
             salindexname=self.band_name,
             generator=self.generator_name,
             date=date_begin,
+            suffix=".fits",
         )
         try:
             await self.s3bucket.upload(fileobj=fileobj, key=key)
