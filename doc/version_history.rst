@@ -6,6 +6,22 @@
 Version History
 ###############
 
+v0.3.0
+======
+
+Changes:
+
+* Updated for ts_salobj v5.14.0.
+  Build the ``salobj.AsyncS3Bucket`` with ``create=True`` when mocking the S3 server.
+  Specify ``suffix="*.fits"`` when constructing an S3 key.
+
+Requires:
+
+* ts_salobj 5.14
+* ts_idl 1
+* ts_xml 4.3
+* Rotator IDL files, e.g. made using ``make_idl_files.py Rotator``
+
 v0.2.1
 ======
 
