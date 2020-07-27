@@ -32,7 +32,7 @@ from lsst.ts import salobj
 from lsst.ts import FiberSpectrograph
 from lsst.ts.idl.enums.FiberSpectrograph import ExposureState
 
-STD_TIMEOUT = 1  # standard command timeout (sec)
+STD_TIMEOUT = 5  # standard command timeout (sec)
 LONG_TIMEOUT = 20  # timeout for starting SAL components (sec)
 
 
