@@ -1,0 +1,101 @@
+pipeline {
+    agent{ 
+        docker {
+            image 'lsstts/conda_package_builder:latest'
+            alwaysPull 'true'
+            args "--env {csc_config_repo}_DIR=/home/saluser/{csc_config_repo} --env LSST_DDS_DOMAIN=citest -u root --entrypoint=''"
+            # csc_config_repo should be changed to the CSC's configuration repo name i.e. ts_config_attcs for the athexapod.
+            # These could be changed to environment variables but that has not been tested yet, so does not make it into the form of the template.
+        }
+    }
+    environment {
+        package_name = {ts_fiberspectrograph}
+        # name of the csc package i.e. ts_athexapod
+        OSPL_HOME="/opt/OpenSpliceDDS/V6.9.0/HDE/x86_64.linux"
+    }
+    options {
+        buildDiscarder
+            (logRotator (
+                artifactDaysToKeepStr: '',
+                artifactNumToKeepStr: '',
+                daysToKeepStr: '14',
+                numToKeepStr: '10'
+            ) ),
+        disableConcurrentBuilds()
+    }
+    stages {
+        stage("Clone {csc_config_repo}"){
+            steps {
+                withEnv(["HOME=${env.WORKSPACE}"]) {
+                    sh """
+                    cd /home/saluser
+                    git clone https://github.com/lsst-ts/{csc_config_repo}.git
+                    """
+                }
+            }
+        }
+        stage("Create Conda package") {
+            when {
+                buildingTag()
+            }
+            steps {
+                withEnv(["HOME=${env.WORKSPACE}"]) {
+                    sh """
+                    cd ${HOME}/conda 
+                    source /home/saluser/miniconda3/bin/activate
+                    conda config --add channels conda-forge
+                    conda config --add channels lsstts
+                    source ${OSPL_HOME}/release.com
+                    conda build --prefix-length 100 .
+                    """
+                }
+            }
+        }
+        stage("Create Conda Dev package") {
+            when {
+                not {
+                    buildingTag()
+                }
+            }
+            steps {
+                withEnv(["HOME=${env.WORKSPACE}"]) {
+                    sh """
+                        cd ${HOME}/conda
+                        source /home/saluser/miniconda3/bin/activate
+                        conda config --add channels conda-forge
+                        conda config --add channels lsstts
+                        source ${OSPL_HOME}/release.com
+                        conda build -c lsstts/label/dev --prefix-length 100 .
+                    """
+                }
+            }
+        }
+
+        stage("Push Conda Release package") {
+            when {
+                buildingTag()
+            }
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'CondaForge', passwordVariable: 'anaconda_pass', usernameVariable: 'anaconda_user')]) {
+                    withEnv(["HOME=${env.WORKSPACE}"]) {
+                        sh """
+                        source /home/saluser/miniconda3/bin/activate
+                        anaconda login --user ${anaconda_user} --password ${anaconda_pass}
+                        anaconda upload -u lsstts --force ~/miniconda3/conda-bld/linux-64/ts-${package_name}*.tar.bz2
+                        """
+                    }
+                }
+            }
+        }
+    }
+    post {
+        always {
+            withEnv(["HOME=${env.WORKSPACE}"]) {
+                sh 'chown -R 1003:1003 ${HOME}/'
+            }
+        }
+        cleanup {
+            deleteDir()
+        }
+    }
+}
