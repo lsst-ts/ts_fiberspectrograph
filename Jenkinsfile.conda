@@ -3,7 +3,7 @@ pipeline {
         docker {
             image 'lsstts/conda_package_builder:latest'
             alwaysPull 'true'
-            args "--env {csc_config_repo}_DIR=/home/saluser/{csc_config_repo} --env LSST_DDS_DOMAIN=citest -u root --entrypoint=''"
+            args "--env TS_CONFIG_OCS_DIR=/home/saluser/ts_config_ocs --env LSST_DDS_DOMAIN=citest -u root --entrypoint=''"
         }
     }
     environment {
