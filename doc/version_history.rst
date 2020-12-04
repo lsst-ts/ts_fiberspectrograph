@@ -6,6 +6,13 @@
 Version History
 ###############
 
+v0.3.1
+======
+
+* Updated Jenkinsfile.conda to use Jenkins Shared Library
+* Pinned the ts-idl and ts-salobj version in conda recipe
+* Add missing required dependency in EUPs table file
+
 v0.3.0
 ======
 
