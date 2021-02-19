@@ -30,6 +30,7 @@ import astropy.units as u
 from . import constants
 from .avsSimulator import AvsSimulator
 from .avsFiberSpectrograph import AvsFiberSpectrograph
+from . import __version__
 from . import dataManager
 from lsst.ts.idl.enums.FiberSpectrograph import ExposureState
 from lsst.ts import salobj
@@ -75,6 +76,7 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
         "1: simulate the spectrograph; "
         "2: simulate the s3 large file annex"
     )
+    version = __version__
 
     def __init__(
         self,
