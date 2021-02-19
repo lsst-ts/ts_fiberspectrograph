@@ -387,7 +387,7 @@ class TestFiberSpectrographCsc(salobj.BaseCscTestCase, asynctest.TestCase):
             name="FiberSpectrograph",
             index=-1,
             exe_name="run_FiberSpectrograph.py",
-            cmdline_args=("-s", "3"),
+            cmdline_args=("--simulate", "3"),
         )
 
 

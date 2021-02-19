@@ -69,6 +69,13 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
     * 20: If there is an error taking an exposure.
     """
 
+    valid_simulation_modes = (0, 1, 2, 3)
+    simulation_help = (
+        "Simulation mode, a bitmask of 2 values: "
+        "1: simulate the spectrograph; "
+        "2: simulate the s3 large file annex"
+    )
+
     def __init__(
         self,
         index,
@@ -83,7 +90,7 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
             .parents[4]
             .joinpath("schema", "FiberSpectrograph.yaml")
         )
-        self._simulator = AvsSimulator()
+        self._simulator = None
         self.device = None
 
         self.serial_number = constants.SERIAL_NUMBERS[index]
@@ -162,6 +169,8 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
         """
         await super().close_tasks()
         self.telemetry_loop_task.cancel()
+        if self._simulator is not None:
+            self._simulator.stop()
 
     async def telemetry_loop(self):
         """Output telemetry information at regular intervals.
@@ -176,12 +185,9 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
             await asyncio.sleep(self.telemetry_interval)
 
     async def implement_simulation_mode(self, simulation_mode):
-        if simulation_mode < 0 or simulation_mode > sum(constants.SimulationMode):
-            raise ValueError(f"Unsupported simulation_mode {simulation_mode}")
         if simulation_mode & constants.SimulationMode.Spectrograph != 0:
+            self._simulator = AvsSimulator()
             self._simulator.start()
-        else:
-            self._simulator.stop()
 
     async def do_expose(self, data):
         """Take an exposure with the connected spectrograph.
@@ -296,20 +302,3 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
         """
         self.assert_enabled()
         self.device.stop_exposure()
-
-    @classmethod
-    def add_arguments(cls, parser):
-        super(FiberSpectrographCsc, cls).add_arguments(parser)
-        parser.add_argument(
-            "-s",
-            "--simulate",
-            type=int,
-            help="Simulation mode: a bitmask of 2 values: \n"
-            "1: simulate the spectrograph; "
-            "2: simulate the s3 large file annex s3 server",
-        )
-
-    @classmethod
-    def add_kwargs_from_args(cls, args, kwargs):
-        super(FiberSpectrographCsc, cls).add_kwargs_from_args(args, kwargs)
-        kwargs["simulation_mode"] = args.simulate
