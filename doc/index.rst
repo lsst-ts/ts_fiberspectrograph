@@ -140,7 +140,6 @@ Python API reference
 
 .. automodapi:: lsst.ts.FiberSpectrograph
    :no-main-docstr:
-   :no-inheritance-diagram:
 
 Version History
 ===============
