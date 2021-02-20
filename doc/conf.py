@@ -3,14 +3,14 @@
 This configuration only affects single-package Sphinx documentation builds.
 """
 
-from documenteer.sphinxconfig.stackconf import build_package_configs
-import lsst.ts.FiberSpectrograph
+from documenteer.conf.pipelinespkg import *  # noqa
+import lsst.ts.FiberSpectrograph  # noqa
 
+project = "ts_FiberSpectrograph"
+html_theme_options["logotext"] = project  # noqa
+html_title = project
+html_short_title = project
+doxylink = {}  # Avoid warning: Could not find tag file _doxygen/doxygen.tag
 
-_g = globals()
-_g.update(
-    build_package_configs(
-        project_name="ts_FiberSpectrograph",
-        version=lsst.ts.FiberSpectrograph.__version__,
-    )
-)
+intersphinx_mapping["ts_xml"] = ("https://ts-xml.lsst.io", None)  # noqa
+intersphinx_mapping["ts_salobj"] = ("https://ts-salobj.lsst.io", None)  # noqa
