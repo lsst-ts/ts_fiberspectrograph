@@ -6,8 +6,27 @@
 Version History
 ###############
 
+v0.3.2
+======
+
+Changes:
+
+* `FiberSpectrographCsc`: modernize handling of simulation mode.
+* `FiberSpectrographCsc`: set ``version`` class variable.
+  Test that this sets the cscVersion field of the softwareVersions event.
+* Modernize doc/conf.py for documenteer 0.6.
+
+Requires:
+
+* ts_salobj 5.14
+* ts_idl 1
+* ts_xml 4.3
+* Rotator IDL files, e.g. made using ``make_idl_files.py Rotator``
+
 v0.3.1
 ======
+
+Changes:
 
 * Updated Jenkinsfile.conda to use Jenkins Shared Library
 * Pinned the ts-idl and ts-salobj version in conda recipe

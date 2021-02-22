@@ -81,6 +81,12 @@ class TestFiberSpectrographCsc(salobj.BaseCscTestCase, asynctest.TestCase):
         correctly.
         """
         async with self.make_csc(initial_state=salobj.State.STANDBY):
+            await self.assert_next_sample(
+                topic=self.remote.evt_softwareVersions,
+                cscVersion=FiberSpectrograph.__version__,
+                subsystemVersions="",
+            )
+
             await self.check_standard_state_transitions(
                 enabled_commands=("cancelExposure", "expose")
             )
@@ -387,7 +393,7 @@ class TestFiberSpectrographCsc(salobj.BaseCscTestCase, asynctest.TestCase):
             name="FiberSpectrograph",
             index=-1,
             exe_name="run_FiberSpectrograph.py",
-            cmdline_args=("-s", "3"),
+            cmdline_args=("--simulate", "3"),
         )
 
 

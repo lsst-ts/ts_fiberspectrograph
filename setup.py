@@ -17,15 +17,18 @@ data_files_path = tools_path.relative_to(base_prefix).parents[1]
 setuptools.setup(
     name="ts-fiber-spectrograph",
     description="LSST Fiber Spectrograph",
-    use_scm_version={"write_to": "python/lsst/ts/FiberSpectrograph/version.py",
-                    "write_to_template": scm_version_template},
+    use_scm_version={
+        "write_to": "python/lsst/ts/FiberSpectrograph/version.py",
+        "write_to_template": scm_version_template,
+    },
     setup_requires=["setuptools_scm", "pytest-runner"],
     install_requires=install_requires,
     package_dir={"": "python"},
     packages=setuptools.find_namespace_packages(where="python"),
     package_data={"": ["*.rst", "*.yaml"]},
-    data_files=[(os.path.join(data_files_path, "schema"),
-                ["schema/FiberSpectrograph.yaml"])],
+    data_files=[
+        (os.path.join(data_files_path, "schema"), ["schema/FiberSpectrograph.yaml"])
+    ],
     scripts=["bin/run_FiberSpectrograph.py"],
     tests_require=tests_require,
     extras_require={"dev": dev_requires},
@@ -33,5 +36,5 @@ setuptools.setup(
     project_urls={
         "Bug Tracker": "https://jira.lsstcorp.org/secure/Dashboard.jspa",
         "Source Code": "https://github.com/lsst-ts/ts_FiberSpectrograph",
-    }
+    },
 )
