@@ -1,4 +1,3 @@
-import os
 import sys
 import setuptools
 import pathlib
@@ -26,9 +25,6 @@ setuptools.setup(
     package_dir={"": "python"},
     packages=setuptools.find_namespace_packages(where="python"),
     package_data={"": ["*.rst", "*.yaml"]},
-    data_files=[
-        (os.path.join(data_files_path, "schema"), ["schema/FiberSpectrograph.yaml"])
-    ],
     scripts=["bin/run_FiberSpectrograph.py"],
     tests_require=tests_require,
     extras_require={"dev": dev_requires},

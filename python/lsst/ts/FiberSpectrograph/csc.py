@@ -27,13 +27,14 @@ import pathlib
 
 import astropy.units as u
 
-from . import constants
-from .avsSimulator import AvsSimulator
-from .avsFiberSpectrograph import AvsFiberSpectrograph
-from . import __version__
-from . import dataManager
 from lsst.ts.idl.enums.FiberSpectrograph import ExposureState
 from lsst.ts import salobj
+from . import constants
+from . import __version__
+from .avsSimulator import AvsSimulator
+from .avsFiberSpectrograph import AvsFiberSpectrograph
+from .config_schema import CONFIG_SCHEMA
+from . import dataManager
 
 
 class FiberSpectrographCsc(salobj.ConfigurableCsc):
@@ -86,12 +87,6 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
         simulation_mode=0,
     ):
         index = constants.SalIndex(index)
-        schema_path = (
-            pathlib.Path(__file__)
-            .resolve()
-            .parents[4]
-            .joinpath("schema", "FiberSpectrograph.yaml")
-        )
         self._simulator = None
         self.device = None
 
@@ -111,7 +106,7 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
         super().__init__(
             name="FiberSpectrograph",
             index=index,
-            schema_path=schema_path,
+            config_schema=CONFIG_SCHEMA,
             config_dir=config_dir,
             initial_state=initial_state,
             simulation_mode=simulation_mode,

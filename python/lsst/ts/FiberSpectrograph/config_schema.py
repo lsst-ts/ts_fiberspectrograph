@@ -19,14 +19,27 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-try:
-    from .version import *
-except ImportError:
-    __version__ = "?"
+__all__ = ["CONFIG_SCHEMA"]
 
-from .config_schema import *
-from .constants import *
-from .csc import *
-from .avsFiberSpectrograph import *
-from .avsSimulator import *
-from .dataManager import *
+import yaml
+
+CONFIG_SCHEMA = yaml.safe_load(
+    """
+$schema: http://json-schema.org/draft-07/schema#
+$id: https://github.com/lsst-ts/ts_FiberSpectrograph/blob/master/python/lsst/ts/FiberSpectrograph/schema_config.py  # noqa
+# title must end with one or more spaces followed by the schema version, which must begin with "v"
+title: FiberSpectrograph v1
+description: Schema for FiberSpectrograph configuration files
+type: object
+properties:
+  s3instance:
+    description: >-
+      Large File Annex S3 instance, for example "summit", "ncsa", or "tucons".
+    type: string
+    default: "summit"
+    pattern: "^[a-z0-9][.a-z0-9]*[a-z0-9]$"
+required:
+  - s3instance
+additionalProperties: false
+"""
+)
