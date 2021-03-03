@@ -6,6 +6,21 @@
 Version History
 ###############
 
+v0.4.0
+======
+
+Changes:
+
+* Store the CSC configuration schema in code.
+  This requires ts_salobj 6.3.
+
+Requires:
+
+* ts_salobj 6.3
+* ts_idl 1
+* ts_xml 4.3
+* Rotator IDL files, e.g. made using ``make_idl_files.py Rotator``
+
 v0.3.2
 ======
 
