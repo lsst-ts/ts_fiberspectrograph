@@ -29,7 +29,6 @@ import time
 import unittest
 import unittest.mock
 
-import asynctest
 import astropy.units as u
 import numpy as np
 
@@ -41,7 +40,7 @@ from lsst.ts.FiberSpectrograph import AvsDeviceStatus, AvsIdentity
 from lsst.ts.FiberSpectrograph import AvsDeviceConfig, AvsMeasureConfig
 
 
-class TestAvsFiberSpectrograph(asynctest.TestCase):
+class TestAvsFiberSpectrograph(unittest.IsolatedAsyncioTestCase):
     """Tests of the python API for the Avantes AvaSpec-ULS spectrograph."""
 
     def setUp(self):

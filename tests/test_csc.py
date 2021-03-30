@@ -25,7 +25,6 @@ import pathlib
 import unittest
 import urllib.parse
 
-import asynctest
 import astropy.io.fits
 
 from lsst.ts import salobj
@@ -36,7 +35,9 @@ STD_TIMEOUT = 5  # standard command timeout (sec)
 LONG_TIMEOUT = 20  # timeout for starting SAL components (sec)
 
 
-class TestFiberSpectrographCsc(salobj.BaseCscTestCase, asynctest.TestCase):
+class TestFiberSpectrographCsc(
+    salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
+):
     """Test the functionality of the FiberSpectrographCsc, using a mocked
     spectrograph connection.
 
