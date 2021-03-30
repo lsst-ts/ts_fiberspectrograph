@@ -30,8 +30,7 @@ from lsst.ts.FiberSpectrograph import SpectrographData, DataManager
 
 
 class TestDataManager(unittest.TestCase):
-    """Tests of the data management API for the fiber spectrograph CSC.
-    """
+    """Tests of the data management API for the fiber spectrograph CSC."""
 
     def setUp(self):
         self.instrument = "TestBlue"
@@ -74,7 +73,9 @@ class TestDataManager(unittest.TestCase):
             "IMGTYPE": self.type,
             "SOURCE": self.source,
             "TEMP_SET": self.temperature_setpoint.to_value(u.deg_C),
-            "CCDTEMP": self.temperature.to_value(u.deg_C,),
+            "CCDTEMP": self.temperature.to_value(
+                u.deg_C,
+            ),
             # WCS headers
             "CTYPE1": "WAVE-TAB",
             "PS1_0": "WCS-TAB",

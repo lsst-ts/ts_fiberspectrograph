@@ -36,8 +36,7 @@ FORMAT_VERSION = 1
 
 @dataclasses.dataclass
 class SpectrographData:
-    """Class to hold data and metadata from a fiber spectrograph.
-    """
+    """Class to hold data and metadata from a fiber spectrograph."""
 
     wavelength: astropy.units.Quantity
     """The wavelength array produced by the instrument."""

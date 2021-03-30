@@ -57,7 +57,9 @@ class TestFiberSpectrographCsc(salobj.BaseCscTestCase, asynctest.TestCase):
 
     def basic_make_csc(self, initial_state, config_dir, simulation_mode, index=-1):
         return FiberSpectrograph.FiberSpectrographCsc(
-            initial_state=initial_state, simulation_mode=simulation_mode, index=index,
+            initial_state=initial_state,
+            simulation_mode=simulation_mode,
+            index=index,
         )
 
     async def check_exposureState(self, remote, expect):
@@ -187,7 +189,8 @@ class TestFiberSpectrographCsc(salobj.BaseCscTestCase, asynctest.TestCase):
             # and do not change the exposure state.
             duration = 1e-9  # seconds
             with salobj.assertRaisesAckError(
-                ack=salobj.SalRetCode.CMD_FAILED, result_contains="Exposure duration",
+                ack=salobj.SalRetCode.CMD_FAILED,
+                result_contains="Exposure duration",
             ):
                 await asyncio.create_task(
                     self.remote.cmd_expose.set_start(
@@ -255,7 +258,8 @@ class TestFiberSpectrographCsc(salobj.BaseCscTestCase, asynctest.TestCase):
             # and do not change the exposure state.
             duration = 1e-9  # seconds
             with salobj.assertRaisesAckError(
-                ack=salobj.SalRetCode.CMD_FAILED, result_contains="Exposure duration",
+                ack=salobj.SalRetCode.CMD_FAILED,
+                result_contains="Exposure duration",
             ):
                 await asyncio.create_task(
                     self.remote.cmd_expose.set_start(
