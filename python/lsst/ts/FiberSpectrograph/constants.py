@@ -39,8 +39,7 @@ class SalIndex(enum.IntEnum):
 
 
 class SimulationMode(enum.IntFlag):
-    """Bitmask values for the CSC simulation mode.
-    """
+    """Bitmask values for the CSC simulation mode."""
 
     Spectrograph = 1
     S3Server = 2

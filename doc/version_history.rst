@@ -6,6 +6,22 @@
 Version History
 ###############
 
+v0.4.1
+======
+
+Changes:
+
+* Use `unittest.IsolatedAsyncioTestCase` instead of the abandoned asynctest package.
+* Use pre-commit to enforce black formatting; see the README.md for instructions.
+* Format the code with black 20.8b1.
+
+Requires:
+
+* ts_salobj 6.3
+* ts_idl 1
+* ts_xml 4.3
+* Rotator IDL files, e.g. made using ``make_idl_files.py Rotator``
+
 v0.4.0
 ======
 

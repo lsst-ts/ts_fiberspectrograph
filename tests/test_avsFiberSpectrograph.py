@@ -29,7 +29,6 @@ import time
 import unittest
 import unittest.mock
 
-import asynctest
 import astropy.units as u
 import numpy as np
 
@@ -41,9 +40,8 @@ from lsst.ts.FiberSpectrograph import AvsDeviceStatus, AvsIdentity
 from lsst.ts.FiberSpectrograph import AvsDeviceConfig, AvsMeasureConfig
 
 
-class TestAvsFiberSpectrograph(asynctest.TestCase):
-    """Tests of the python API for the Avantes AvaSpec-ULS spectrograph.
-    """
+class TestAvsFiberSpectrograph(unittest.IsolatedAsyncioTestCase):
+    """Tests of the python API for the Avantes AvaSpec-ULS spectrograph."""
 
     def setUp(self):
         """This setUp configures the mock for a "no error conditions" use case,
@@ -297,8 +295,7 @@ class TestAvsFiberSpectrograph(asynctest.TestCase):
         self.patch.return_value.AVS_Done.assert_called_once_with()
 
     def test_disconnect_bad_handle(self):
-        """Do not attempt to disconnect if the device handle is bad.
-        """
+        """Do not attempt to disconnect if the device handle is bad."""
         spec = AvsFiberSpectrograph()
         spec.handle = AvsReturnCode.invalidHandle.value
         spec.disconnect()
@@ -402,7 +399,8 @@ class TestAvsFiberSpectrograph(asynctest.TestCase):
         np.testing.assert_array_equal(result[1], self.spectrum)
 
     async def test_expose_raises_if_active_exposure(self):
-        """Starting a new exposure while one is currently active should raise
+        """Starting a new exposure while one is currently active should
+        raise.
         """
         duration = 0.2  # seconds
         spec = AvsFiberSpectrograph()
@@ -473,7 +471,8 @@ class TestAvsFiberSpectrograph(asynctest.TestCase):
         self.patch.return_value.AVS_PollScan.assert_called_once_with(self.handle)
 
     async def test_expose_PollScan_timeout(self):
-        """Test that `expose` raises if it has to wait too long when polling.
+        """Test that `expose` raises if it has to wait too long when
+        polling.
         """
         duration = 0.5  # seconds
         # Have the PollScan just run forever.

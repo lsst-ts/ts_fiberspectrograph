@@ -31,8 +31,8 @@ You can also try running `udevadm monitor --udev` and plugging and un-plugging t
 
 # Automatic Formatting
 
-This code is automatically formatted by ``black`` using a git pre-commit hook.
-To enable this:
+This code uses ``pre-commit`` to maintain ``black`` formatting and ``flake8`` compliance.
+To enable this, run the following commands once (the first removes the previous pre-commit hook)::
 
-* Install the `black` Python package.
-* Run `git config core.hooksPath .githooks` once in this repository.
+    git config --unset-all core.hooksPath
+    pre-commit install
