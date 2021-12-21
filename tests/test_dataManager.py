@@ -86,22 +86,20 @@ class TestDataManager(unittest.TestCase):
     def check_header(self, header):
         """Check that all expected keys are in the header."""
         for key, value in self.expected_header.items():
-            self.assertEqual(header[key], value, msg=f"Mismatched key: {key}")
+            assert header[key] == value, f"Mismatched key: {key}"
 
     def check_wavelength_data(self, wavelengths, expected_unit=None):
         """Check that the wavelength data read from the file is correct."""
         # This will be 2D from the table so force to 1D for comparison
-        self.assertEqual(wavelengths.shape, (self.wavelength.size, 1))
+        assert wavelengths.shape == (self.wavelength.size, 1)
         wavelengths = wavelengths.flatten()
         np.testing.assert_array_equal(wavelengths, self.wavelength)
 
         # Ensure that we have a quantity compatible with meters
-        self.assertEqual(
-            wavelengths.to(u.m).unit.name, "m", "Wavelengths array converted to meters"
-        )
+        assert wavelengths.to(u.m).unit.name == "m"
 
         if expected_unit is not None:
-            self.assertEqual(wavelengths.unit.name, expected_unit)
+            assert wavelengths.unit.name == expected_unit
 
     def test_make_fits_header(self):
         manager = DataManager(instrument=self.instrument, origin=self.origin)
@@ -116,7 +114,7 @@ class TestDataManager(unittest.TestCase):
         np.testing.assert_array_equal(hdu.data, self.spectrum)
         self.check_header(hdu.header)
         # The flux data should be a Primary HDU.
-        self.assertIsInstance(hdu, astropy.io.fits.PrimaryHDU)
+        assert isinstance(hdu, astropy.io.fits.PrimaryHDU)
 
     def test_make_wavelength_hdu(self):
         manager = DataManager(instrument=self.instrument, origin=self.origin)
@@ -125,7 +123,7 @@ class TestDataManager(unittest.TestCase):
         wavelengths = QTable.read(hdu)["wavelength"][0]
         self.check_wavelength_data(wavelengths)
         # The wavelength data should not be a Primary HDU.
-        self.assertNotIsInstance(hdu, astropy.io.fits.PrimaryHDU)
+        assert not isinstance(hdu, astropy.io.fits.PrimaryHDU)
 
     def test_make_hdulist(self):
         manager = DataManager(instrument=self.instrument, origin=self.origin)
@@ -135,12 +133,12 @@ class TestDataManager(unittest.TestCase):
 
         # Check that the headers are consistent with WCS -TAB
         primary_header = hdulist[0].header
-        self.assertEqual(primary_header["CTYPE1"], "WAVE-TAB")
+        assert primary_header["CTYPE1"] == "WAVE-TAB"
         wcs_tab_name = primary_header["PS1_0"]
         wcs_tab_extver = primary_header["PV1_1"]
         wave_col_name = primary_header["PS1_1"]
         wave_table = QTable.read(hdulist[wcs_tab_name, wcs_tab_extver])
-        self.assertEqual(len(wave_table), 1)
+        assert len(wave_table) == 1
         # Only one row so select that one explicitly
         wavelengths = wave_table[wave_col_name][0]
         self.check_wavelength_data(wavelengths, expected_unit=primary_header["CUNIT1"])
