@@ -130,6 +130,9 @@ class TestFiberSpectrographCsc(
         async with self.make_csc(initial_state=salobj.State.STANDBY):
             # Check that we are properly in STANDBY at the start
             await self.assert_next_summary_state(salobj.State.STANDBY)
+            error = await self.assert_next_sample(
+                topic=self.remote.evt_errorCode, errorCode=0, errorReport=""
+            )
 
             msg = "Failed to connect"
             with salobj.assertRaisesAckError(
@@ -294,6 +297,9 @@ class TestFiberSpectrographCsc(
         async with self.make_csc(initial_state=salobj.State.ENABLED):
             # Check that we are properly in ENABLED at the start.
             await self.assert_next_summary_state(salobj.State.ENABLED)
+            error = await self.assert_next_sample(
+                topic=self.remote.evt_errorCode, errorCode=0, errorReport=""
+            )
 
             msg = "Failed to take exposure"
             with salobj.assertRaisesAckError(
@@ -321,6 +327,13 @@ class TestFiberSpectrographCsc(
             self.assertIsNone(self.csc.device)
             # the exposure state should be FAILED after a failed exposure
             await self.check_exposureState(self.remote, ExposureState.FAILED)
+
+            # Test recovery from fault state
+            await self.remote.cmd_standby.start(timeout=STD_TIMEOUT)
+            await self.assert_next_summary_state(salobj.State.STANDBY)
+            error = await self.assert_next_sample(
+                topic=self.remote.evt_errorCode, errorCode=0, errorReport=""
+            )
 
     async def test_expose_timeout(self):
         """Test that an exposure whose read times out puts us in FAULT and
