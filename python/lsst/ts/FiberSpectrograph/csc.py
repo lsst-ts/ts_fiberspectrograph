@@ -29,6 +29,7 @@ import astropy.units as u
 
 from lsst.ts.idl.enums.FiberSpectrograph import ExposureState
 from lsst.ts import salobj
+from lsst.ts import utils
 from . import constants
 from . import __version__
 from .avsSimulator import AvsSimulator
@@ -100,7 +101,7 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
         self.data_manager = dataManager.DataManager(
             instrument=f"FiberSpectrograph.{self.band_name}", origin=type(self).__name__
         )
-        self.telemetry_loop_task = salobj.make_done_future()
+        self.telemetry_loop_task = utils.make_done_future()
         self.telemetry_interval = 10  # seconds between telemetry output
 
         super().__init__(
@@ -206,11 +207,11 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
         if msg is not None:
             raise salobj.ExpectedError(msg)
         try:
-            date_begin = salobj.astropy_time_from_tai_unix(salobj.current_tai())
+            date_begin = utils.astropy_time_from_tai_unix(utils.current_tai())
             task = asyncio.create_task(self.device.expose(data.duration))
             self.evt_exposureState.set_put(status=ExposureState.INTEGRATING)
             wavelength, spectrum = await task
-            date_end = salobj.astropy_time_from_tai_unix(salobj.current_tai())
+            date_end = utils.astropy_time_from_tai_unix(utils.current_tai())
             self.evt_exposureState.set_put(status=ExposureState.DONE)
             temperature = self.tel_temperature.data.temperature * u.deg_C
             setpoint = self.tel_temperature.data.setpoint * u.deg_C
