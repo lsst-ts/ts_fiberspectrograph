@@ -34,7 +34,7 @@ type: object
 properties:
   s3instance:
     description: >-
-      Large File Annex S3 instance, for example "summit", "ncsa", or "tucons".
+      Large File Annex S3 instance, for example "summit", "ncsa", or "tucson".
     type: string
     default: "summit"
     pattern: "^[a-z0-9][.a-z0-9]*[a-z0-9]$"
