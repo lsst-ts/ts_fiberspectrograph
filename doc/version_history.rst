@@ -6,8 +6,25 @@
 Version History
 ###############
 
+v0.5.0
+------
+
+Changes:
+
+* Update test_csc.py for ts_salobj 8.6, which is now required.
+* Use ts_utils.
+* Use pytest-black to test black formatting, instead of ts_salobj function.
+* Modernize the unit tests to use bare asserts.
+
+Requires:
+
+* ts_salobj 6.8
+* ts_idl 1
+* ts_xml 4.3
+* Rotator IDL files, e.g. made using ``make_idl_files.py Rotator``
+
 v0.4.1
-======
+------
 
 Changes:
 
@@ -23,7 +40,7 @@ Requires:
 * Rotator IDL files, e.g. made using ``make_idl_files.py Rotator``
 
 v0.4.0
-======
+------
 
 Changes:
 
@@ -38,7 +55,7 @@ Requires:
 * Rotator IDL files, e.g. made using ``make_idl_files.py Rotator``
 
 v0.3.2
-======
+------
 
 Changes:
 
@@ -55,7 +72,7 @@ Requires:
 * Rotator IDL files, e.g. made using ``make_idl_files.py Rotator``
 
 v0.3.1
-======
+------
 
 Changes:
 
@@ -64,7 +81,7 @@ Changes:
 * Add missing required dependency in EUPs table file
 
 v0.3.0
-======
+------
 
 Changes:
 
@@ -80,7 +97,7 @@ Requires:
 * Rotator IDL files, e.g. made using ``make_idl_files.py Rotator``
 
 v0.2.1
-======
+------
 
 Changes:
 
@@ -90,7 +107,7 @@ Changes:
 * Update ``.travis.yml`` to remove ``sudo: false`` to github travis checks pass once again.
 
 v0.2.0
-======
+------
 
 Write images to an S3 Large File Annex using ts_salobj 5.9, which changes the convention for bucket names and keys.
 
@@ -102,7 +119,7 @@ Requires:
 * Rotator IDL files, e.g. made using ``make_idl_files.py Rotator``
 
 v0.1.0
-======
+------
 
 First tagged prerelease.
 This version adds writing images to an S3 Large File Annex using ts_salobj 5.8.

@@ -26,6 +26,7 @@ import unittest
 import urllib.parse
 
 import astropy.io.fits
+import pytest
 
 from lsst.ts import salobj
 from lsst.ts import FiberSpectrograph
@@ -66,18 +67,18 @@ class TestFiberSpectrographCsc(
     async def check_exposureState(self, remote, expect):
         """Check the value of the ExposureState event."""
         state = await remote.evt_exposureState.next(flush=False, timeout=STD_TIMEOUT)
-        self.assertEqual(state.status, expect)
+        assert state.status == expect
 
     async def check_summaryState(self, remote, expect):
         """Check the value of the SummaryState event."""
         state = await remote.evt_summaryState.next(flush=False, timeout=STD_TIMEOUT)
-        self.assertEqual(state.summaryState, expect)
+        assert state.summaryState == expect
 
     async def check_temperature(self, remote, temperature, setpoint):
         """Check the value of the temperature telemetry."""
         state = await remote.tel_temperature.next(flush=False, timeout=STD_TIMEOUT)
-        self.assertAlmostEqual(state.temperature, temperature)
-        self.assertAlmostEqual(state.setpoint, setpoint)
+        assert state.temperature == pytest.approx(temperature)
+        assert state.setpoint == pytest.approx(setpoint)
 
     async def test_standard_state_transitions(self):
         """Test that state changes connect/disconnect the spectrograph
@@ -118,7 +119,7 @@ class TestFiberSpectrographCsc(
 
         async with self.make_csc(initial_state=salobj.State.DISABLED, index=index):
             await self.assert_next_summary_state(salobj.State.DISABLED)
-            self.assertEqual(self.csc.device.device, id1)
+            assert self.csc.device.device == id1
 
     async def test_enable_fails(self):
         """Test that exceptions raised when connecting cause a fault when
@@ -130,6 +131,9 @@ class TestFiberSpectrographCsc(
         async with self.make_csc(initial_state=salobj.State.STANDBY):
             # Check that we are properly in STANDBY at the start
             await self.assert_next_summary_state(salobj.State.STANDBY)
+            error = await self.assert_next_sample(
+                topic=self.remote.evt_errorCode, errorCode=0, errorReport=""
+            )
 
             msg = "Failed to connect"
             with salobj.assertRaisesAckError(
@@ -140,11 +144,9 @@ class TestFiberSpectrographCsc(
             error = await self.remote.evt_errorCode.next(
                 flush=False, timeout=STD_TIMEOUT
             )
-            self.assertIn("RuntimeError", error.errorReport)
-            self.assertIn(
-                "Invalid device handle; cannot activate device", error.errorReport
-            )
-            self.assertIsNone(self.csc.device)
+            assert "RuntimeError" in error.errorReport
+            assert "Invalid device handle; cannot activate device" in error.errorReport
+            assert self.csc.device is None
 
     async def test_expose_good(self):
         """Test that we can take an exposure and that appropriate events are
@@ -157,7 +159,7 @@ class TestFiberSpectrographCsc(
         ):
             # Check that we are properly in ENABLED at the start
             await self.assert_next_summary_state(salobj.State.ENABLED)
-            self.assertEqual(self.csc.s3bucket_name, self.csc.s3bucket.name)
+            assert self.csc.s3bucket_name == self.csc.s3bucket.name
 
             duration = 2  # seconds
             task = asyncio.create_task(
@@ -175,16 +177,16 @@ class TestFiberSpectrographCsc(
                 flush=False, timeout=STD_TIMEOUT
             )
             parsed_url = urllib.parse.urlparse(data.url)
-            self.assertEqual(parsed_url.scheme, "s3")
-            self.assertEqual(parsed_url.netloc, self.csc.s3bucket.name)
+            assert parsed_url.scheme == "s3"
+            assert parsed_url.netloc == self.csc.s3bucket.name
 
             # Minimally check the data written to s3
             key = parsed_url.path[1:]  # Strip leading "/"
             fileobj = await self.csc.s3bucket.download(key)
             hdulist = astropy.io.fits.open(fileobj)
-            self.assertEqual(len(hdulist), 2)
-            self.assertEqual(hdulist[0].header["ORIGIN"], "FiberSpectrographCsc")
-            self.assertEqual(hdulist[0].header["INSTRUME"], "FiberSpectrograph.Red")
+            assert len(hdulist) == 2
+            assert hdulist[0].header["ORIGIN"] == "FiberSpectrographCsc"
+            assert hdulist[0].header["INSTRUME"] == "FiberSpectrograph.Red"
 
             # Check that out of range durations do not put us in FAULT,
             # and do not change the exposure state.
@@ -199,12 +201,12 @@ class TestFiberSpectrographCsc(
                     )
                 )
             # No ExposureState message should have been emitted.
-            with self.assertRaises(asyncio.TimeoutError):
+            with pytest.raises(asyncio.TimeoutError):
                 await self.remote.evt_exposureState.next(
                     flush=False, timeout=STD_TIMEOUT
                 )
             # We should not have left ENABLED.
-            with self.assertRaises(asyncio.TimeoutError):
+            with pytest.raises(asyncio.TimeoutError):
                 await self.remote.evt_exposureState.next(
                     flush=False, timeout=STD_TIMEOUT
                 )
@@ -220,7 +222,7 @@ class TestFiberSpectrographCsc(
         ):
             # Check that we are properly in ENABLED at the start
             await self.assert_next_summary_state(salobj.State.ENABLED)
-            self.assertEqual(self.csc.s3bucket_name, self.csc.s3bucket.name)
+            assert self.csc.s3bucket_name == self.csc.s3bucket.name
 
             def bad_upload(*args, **kwargs):
                 raise RuntimeError("Failed on purpose")
@@ -244,16 +246,16 @@ class TestFiberSpectrographCsc(
             )
             parsed_url = urllib.parse.urlparse(data.url)
             filepath = urllib.parse.unquote(parsed_url.path)
-            self.assertEqual(parsed_url.scheme, "file")
+            assert parsed_url.scheme == "file"
             desired_path_start = "/tmp/" + self.csc.s3bucket.name + "/"
             start_nchar = len(desired_path_start)
-            self.assertEqual(filepath[0:start_nchar], desired_path_start)
+            assert filepath[0:start_nchar] == desired_path_start
 
             # Minimally check the data file
             hdulist = astropy.io.fits.open(filepath)
-            self.assertEqual(len(hdulist), 2)
-            self.assertEqual(hdulist[0].header["ORIGIN"], "FiberSpectrographCsc")
-            self.assertEqual(hdulist[0].header["INSTRUME"], "FiberSpectrograph.Red")
+            assert len(hdulist) == 2
+            assert hdulist[0].header["ORIGIN"] == "FiberSpectrographCsc"
+            assert hdulist[0].header["INSTRUME"] == "FiberSpectrograph.Red"
 
             # Check that out of range durations do not put us in FAULT,
             # and do not change the exposure state.
@@ -268,12 +270,12 @@ class TestFiberSpectrographCsc(
                     )
                 )
             # No ExposureState message should have been emitted.
-            with self.assertRaises(asyncio.TimeoutError):
+            with pytest.raises(asyncio.TimeoutError):
                 await self.remote.evt_exposureState.next(
                     flush=False, timeout=STD_TIMEOUT
                 )
             # We should not have left ENABLED.
-            with self.assertRaises(asyncio.TimeoutError):
+            with pytest.raises(asyncio.TimeoutError):
                 await self.remote.evt_exposureState.next(
                     flush=False, timeout=STD_TIMEOUT
                 )
@@ -294,6 +296,9 @@ class TestFiberSpectrographCsc(
         async with self.make_csc(initial_state=salobj.State.ENABLED):
             # Check that we are properly in ENABLED at the start.
             await self.assert_next_summary_state(salobj.State.ENABLED)
+            error = await self.assert_next_sample(
+                topic=self.remote.evt_errorCode, errorCode=0, errorReport=""
+            )
 
             msg = "Failed to take exposure"
             with salobj.assertRaisesAckError(
@@ -316,11 +321,18 @@ class TestFiberSpectrographCsc(
                     "GetScopeData",
                 )
             )
-            self.assertIn(errorMsg, error.errorReport)
+            assert errorMsg in error.errorReport
             # Going into FAULT should close the device connection.
-            self.assertIsNone(self.csc.device)
+            assert self.csc.device is None
             # the exposure state should be FAILED after a failed exposure
             await self.check_exposureState(self.remote, ExposureState.FAILED)
+
+            # Test recovery from fault state
+            await self.remote.cmd_standby.start(timeout=STD_TIMEOUT)
+            await self.assert_next_summary_state(salobj.State.STANDBY)
+            error = await self.assert_next_sample(
+                topic=self.remote.evt_errorCode, errorCode=0, errorReport=""
+            )
 
     async def test_expose_timeout(self):
         """Test that an exposure whose read times out puts us in FAULT and
@@ -388,7 +400,7 @@ class TestFiberSpectrographCsc(
             # If we leave DISABLED, the telemetry loop should be closed.
             await self.remote.cmd_standby.start(timeout=STD_TIMEOUT)
             await self.assert_next_summary_state(salobj.State.STANDBY)
-            self.assertTrue(self.csc.telemetry_loop_task.done())
+            assert self.csc.telemetry_loop_task.done()
 
     async def test_bin_script(self):
         """Test the CSC command line script, by checking that it starts
