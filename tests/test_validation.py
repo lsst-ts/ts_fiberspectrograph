@@ -33,25 +33,11 @@ class ValidationTestCase(unittest.TestCase):
 
     def setUp(self):
         self.schema = FiberSpectrograph.CONFIG_SCHEMA
-        self.validator = salobj.DefaultingValidator(schema=self.schema)
-        self.default = dict(s3instance="summit")
+        self.validator = salobj.StandardValidator(schema=self.schema)
 
-    def test_default(self):
-        result = self.validator.validate(None)
-        for field, expected_value in self.default.items():
-            assert result[field] == expected_value
-
-    def test_some_specified(self):
-        data = dict(s3instance="a.valid.value")
-        for field, value in data.items():
-            one_field_data = {field: value}
-            with self.subTest(one_field_data=one_field_data):
-                result = self.validator.validate(one_field_data)
-                for field, default_value in self.default.items():
-                    if field in one_field_data:
-                        assert result[field] == one_field_data[field]
-                    else:
-                        assert result[field] == default_value
+    def test_basics(self):
+        config = dict(s3instance="a.valid.value")
+        self.validator.validate(config)
 
     def test_invalid_configs(self):
         for bad_s3instance in (

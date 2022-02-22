@@ -35,6 +35,8 @@ from lsst.ts.idl.enums.FiberSpectrograph import ExposureState
 STD_TIMEOUT = 5  # standard command timeout (sec)
 LONG_TIMEOUT = 20  # timeout for starting SAL components (sec)
 
+TEST_CONFIG_DIR = pathlib.Path(__file__).parent / "data" / "config"
+
 
 class TestFiberSpectrographCsc(
     salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
@@ -56,10 +58,12 @@ class TestFiberSpectrographCsc(
     def setUp(self):
         self.patcher = FiberSpectrograph.AvsSimulator()
         self.patch = self.patcher.start(testCase=self)
+        super().setUp()
 
     def basic_make_csc(self, initial_state, config_dir, simulation_mode, index=-1):
         return FiberSpectrograph.FiberSpectrographCsc(
             initial_state=initial_state,
+            config_dir=config_dir,
             simulation_mode=simulation_mode,
             index=index,
         )
@@ -84,7 +88,9 @@ class TestFiberSpectrographCsc(
         """Test that state changes connect/disconnect the spectrograph
         correctly.
         """
-        async with self.make_csc(initial_state=salobj.State.STANDBY):
+        async with self.make_csc(
+            initial_state=salobj.State.STANDBY, config_dir=TEST_CONFIG_DIR
+        ):
             await self.assert_next_sample(
                 topic=self.remote.evt_softwareVersions,
                 cscVersion=FiberSpectrograph.__version__,
@@ -117,7 +123,9 @@ class TestFiberSpectrographCsc(
         self.patch.return_value.AVS_GetList.side_effect = mock_getList
         self.patch.return_value.AVS_UpdateUSBDevices.return_value = n_devices
 
-        async with self.make_csc(initial_state=salobj.State.DISABLED, index=index):
+        async with self.make_csc(
+            initial_state=salobj.State.DISABLED, index=index, config_dir=TEST_CONFIG_DIR
+        ):
             await self.assert_next_summary_state(salobj.State.DISABLED)
             assert self.csc.device.device == id1
 
@@ -128,7 +136,9 @@ class TestFiberSpectrographCsc(
         self.patch.return_value.AVS_Activate.return_value = (
             FiberSpectrograph.AvsReturnCode.invalidHandle.value
         )
-        async with self.make_csc(initial_state=salobj.State.STANDBY):
+        async with self.make_csc(
+            initial_state=salobj.State.STANDBY, config_dir=TEST_CONFIG_DIR
+        ):
             # Check that we are properly in STANDBY at the start
             await self.assert_next_summary_state(salobj.State.STANDBY)
             error = await self.assert_next_sample(
@@ -156,6 +166,7 @@ class TestFiberSpectrographCsc(
             initial_state=salobj.State.ENABLED,
             simulation_mode=FiberSpectrograph.SimulationMode.S3Server,
             index=FiberSpectrograph.SalIndex.RED,
+            config_dir=TEST_CONFIG_DIR,
         ):
             # Check that we are properly in ENABLED at the start
             await self.assert_next_summary_state(salobj.State.ENABLED)
@@ -219,6 +230,7 @@ class TestFiberSpectrographCsc(
             initial_state=salobj.State.ENABLED,
             simulation_mode=FiberSpectrograph.SimulationMode.S3Server,
             index=FiberSpectrograph.SalIndex.RED,
+            config_dir=TEST_CONFIG_DIR,
         ):
             # Check that we are properly in ENABLED at the start
             await self.assert_next_summary_state(salobj.State.ENABLED)
@@ -293,7 +305,9 @@ class TestFiberSpectrographCsc(
         self.patch.return_value.AVS_GetScopeData.return_value = (
             FiberSpectrograph.AvsReturnCode.ERR_INVALID_MEAS_DATA.value
         )
-        async with self.make_csc(initial_state=salobj.State.ENABLED):
+        async with self.make_csc(
+            initial_state=salobj.State.ENABLED, config_dir=TEST_CONFIG_DIR
+        ):
             # Check that we are properly in ENABLED at the start.
             await self.assert_next_summary_state(salobj.State.ENABLED)
             error = await self.assert_next_sample(
@@ -341,7 +355,9 @@ class TestFiberSpectrographCsc(
         # Have the PollScan just run forever.
         self.patch.return_value.AVS_PollScan.side_effect = itertools.repeat(0)
 
-        async with self.make_csc(initial_state=salobj.State.ENABLED):
+        async with self.make_csc(
+            initial_state=salobj.State.ENABLED, config_dir=TEST_CONFIG_DIR
+        ):
             # Check that we are properly in ENABLED at the start.
             await self.assert_next_summary_state(salobj.State.ENABLED)
 
@@ -362,7 +378,9 @@ class TestFiberSpectrographCsc(
         """Test that we can stop an active exposure, and that the exposureState
         is changed appropriately.
         """
-        async with self.make_csc(initial_state=salobj.State.ENABLED):
+        async with self.make_csc(
+            initial_state=salobj.State.ENABLED, config_dir=TEST_CONFIG_DIR
+        ):
             # Check that we are properly in ENABLED at the start
             await self.assert_next_summary_state(salobj.State.ENABLED)
 
@@ -388,7 +406,9 @@ class TestFiberSpectrographCsc(
         destroyed (e.g. via `close_tasks()`), you will see messages like
         `Task was destroyed but it is pending!` in the test output.
         """
-        async with self.make_csc(initial_state=salobj.State.DISABLED):
+        async with self.make_csc(
+            initial_state=salobj.State.DISABLED, config_dir=TEST_CONFIG_DIR
+        ):
             # Check that we are properly in STANDBY at the start
             await self.assert_next_summary_state(salobj.State.DISABLED)
             await self.check_temperature(
