@@ -58,7 +58,7 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
         as real CSCs should start up in `lsst.ts.salobj.StateSTANDBY`,
         the default.
     override : `str`, optional
-        Configuration override file to use if ``initial_state`` is
+        Configuration override file to apply if ``initial_state`` is
         `State.DISABLED` or `State.ENABLED`.
     simulation_mode : `int`, optional
         Simulation mode.
