@@ -6,6 +6,21 @@
 Version History
 ###############
 
+v0.6.0
+------
+
+Changes:
+
+* Update for ts_salobj v7, which is required.
+  This also requires ts_xml 11.
+
+Requires:
+
+* ts_salobj 7
+* ts_idl 1
+* FiberSpectrograph IDL files built with ts_xml 11
+
+
 v0.5.0
 ------
 
@@ -21,7 +36,7 @@ Requires:
 * ts_salobj 6.8
 * ts_idl 1
 * ts_xml 4.3
-* Rotator IDL files, e.g. made using ``make_idl_files.py Rotator``
+* FiberSpectrograph IDL files, e.g. made using ``make_idl_files.py FiberSpectrograph``
 
 v0.4.1
 ------
@@ -37,7 +52,7 @@ Requires:
 * ts_salobj 6.3
 * ts_idl 1
 * ts_xml 4.3
-* Rotator IDL files, e.g. made using ``make_idl_files.py Rotator``
+* FiberSpectrograph IDL files, e.g. made using ``make_idl_files.py FiberSpectrograph``
 
 v0.4.0
 ------
@@ -52,7 +67,7 @@ Requires:
 * ts_salobj 6.3
 * ts_idl 1
 * ts_xml 4.3
-* Rotator IDL files, e.g. made using ``make_idl_files.py Rotator``
+* FiberSpectrograph IDL files, e.g. made using ``make_idl_files.py FiberSpectrograph``
 
 v0.3.2
 ------
@@ -69,7 +84,7 @@ Requires:
 * ts_salobj 5.14
 * ts_idl 1
 * ts_xml 4.3
-* Rotator IDL files, e.g. made using ``make_idl_files.py Rotator``
+* FiberSpectrograph IDL files, e.g. made using ``make_idl_files.py FiberSpectrograph``
 
 v0.3.1
 ------
@@ -94,7 +109,7 @@ Requires:
 * ts_salobj 5.14
 * ts_idl 1
 * ts_xml 4.3
-* Rotator IDL files, e.g. made using ``make_idl_files.py Rotator``
+* FiberSpectrograph IDL files, e.g. made using ``make_idl_files.py FiberSpectrograph``
 
 v0.2.1
 ------
@@ -116,7 +131,7 @@ Requires:
 * ts_salobj 5.9
 * ts_idl 1
 * ts_xml 4.3
-* Rotator IDL files, e.g. made using ``make_idl_files.py Rotator``
+* FiberSpectrograph IDL files, e.g. made using ``make_idl_files.py FiberSpectrograph``
 
 v0.1.0
 ------

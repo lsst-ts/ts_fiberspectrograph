@@ -57,6 +57,9 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
         The initial state of the CSC. This is provided for unit testing,
         as real CSCs should start up in `lsst.ts.salobj.StateSTANDBY`,
         the default.
+    override : `str`, optional
+        Configuration override file to apply if ``initial_state`` is
+        `State.DISABLED` or `State.ENABLED`.
     simulation_mode : `int`, optional
         Simulation mode.
 
@@ -85,6 +88,7 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
         index,
         config_dir=None,
         initial_state=salobj.State.STANDBY,
+        override="",
         simulation_mode=0,
     ):
         index = constants.SalIndex(index)
@@ -110,6 +114,7 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
             config_schema=CONFIG_SCHEMA,
             config_dir=config_dir,
             initial_state=initial_state,
+            override=override,
             simulation_mode=simulation_mode,
         )
 
@@ -139,13 +144,13 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
                     )
                 except Exception as e:
                     msg = "Failed to connect to fiber spectrograph."
-                    self.fault(code=1, report=f"{msg}: {repr(e)}")
+                    await self.fault(code=1, report=f"{msg}: {repr(e)}")
                     raise salobj.ExpectedError(msg)
 
             if self.telemetry_loop_task.done():
                 self.telemetry_loop_task = asyncio.create_task(self.telemetry_loop())
             status = self.device.get_status()
-            self.evt_deviceInfo.set_put(
+            await self.evt_deviceInfo.set_write(
                 npixels=status.n_pixels,
                 fpgaVersion=status.fpga_version,
                 firmwareVersion=status.firmware_version,
@@ -177,7 +182,7 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
         """
         while True:
             status = self.device.get_status()
-            self.tel_temperature.set_put(
+            await self.tel_temperature.set_write(
                 temperature=status.temperature, setpoint=status.temperature_setpoint
             )
             await asyncio.sleep(self.telemetry_interval)
@@ -209,10 +214,10 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
         try:
             date_begin = utils.astropy_time_from_tai_unix(utils.current_tai())
             task = asyncio.create_task(self.device.expose(data.duration))
-            self.evt_exposureState.set_put(status=ExposureState.INTEGRATING)
+            await self.evt_exposureState.set_write(status=ExposureState.INTEGRATING)
             wavelength, spectrum = await task
             date_end = utils.astropy_time_from_tai_unix(utils.current_tai())
-            self.evt_exposureState.set_put(status=ExposureState.DONE)
+            await self.evt_exposureState.set_write(status=ExposureState.DONE)
             temperature = self.tel_temperature.data.temperature * u.deg_C
             setpoint = self.tel_temperature.data.setpoint * u.deg_C
             n_pixels = self.evt_deviceInfo.data.npixels
@@ -229,17 +234,17 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
                 n_pixels=n_pixels,
             )
         except asyncio.TimeoutError as e:
-            self.evt_exposureState.set_put(status=ExposureState.TIMEDOUT)
+            await self.evt_exposureState.set_write(status=ExposureState.TIMEDOUT)
             msg = f"Timeout waiting for exposure: {repr(e)}"
-            self.fault(code=20, report=msg)
+            await self.fault(code=20, report=msg)
             raise salobj.ExpectedError(msg)
         except asyncio.CancelledError:
-            self.evt_exposureState.set_put(status=ExposureState.CANCELLED)
+            await self.evt_exposureState.set_write(status=ExposureState.CANCELLED)
             raise
         except Exception as e:
-            self.evt_exposureState.set_put(status=ExposureState.FAILED)
+            await self.evt_exposureState.set_write(status=ExposureState.FAILED)
             msg = f"Failed to take exposure with fiber spectrograph: {repr(e)}"
-            self.fault(code=20, report=msg)
+            await self.fault(code=20, report=msg)
             raise salobj.ExpectedError(msg)
 
         await self.save_data(spec_data)
@@ -266,7 +271,7 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
         try:
             await self.s3bucket.upload(fileobj=fileobj, key=key)
             url = f"s3://{self.s3bucket.name}/{key}"
-            self.evt_largeFileObjectAvailable.set_put(
+            await self.evt_largeFileObjectAvailable.set_write(
                 url=url, generator=self.generator_name
             )
         except Exception:
@@ -281,7 +286,7 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
                     dirpath.mkdir(parents=True, exist_ok=True)
 
                 hdulist.writeto(filepath)
-                self.evt_largeFileObjectAvailable.set_put(
+                await self.evt_largeFileObjectAvailable.set_write(
                     url=filepath.as_uri(), generator=self.generator_name
                 )
             except Exception:
