@@ -74,7 +74,7 @@ class AvsSimulator:
         self.tec_coefficients = np.array((1, 2, 0, 0.0, 0), dtype=np.float32)
         self.tec_voltage = 2
         self.temperature = sum(
-            coeff * self.tec_voltage ** i
+            coeff * self.tec_voltage**i
             for i, coeff in enumerate(self.tec_coefficients)
         )
 
