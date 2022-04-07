@@ -6,6 +6,19 @@
 Version History
 ###############
 
+v0.6.1
+------
+
+Changes:
+
+* Fixed the formatting of a src file so that black 22.3.0 is happy with it.
+
+Requires:
+
+* ts_salobj 7
+* ts_idl 1
+* FiberSpectrograph IDL files built with ts_xml 11
+
 v0.6.0
 ------
 
