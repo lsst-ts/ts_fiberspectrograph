@@ -19,7 +19,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = ["FiberSpectrographCsc"]
+__all__ = ["FiberSpectrographCsc", "run_fiberspectrograph"]
 
 import asyncio
 import io
@@ -305,3 +305,8 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
         """
         self.assert_enabled()
         self.device.stop_exposure()
+
+
+def run_fiberspectrograph():
+    """Run the FiberSpectrograph CSC."""
+    asyncio.run(FiberSpectrographCsc.amain(index=True))
