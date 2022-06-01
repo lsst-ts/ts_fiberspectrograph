@@ -24,6 +24,7 @@ __all__ = ["FiberSpectrographCsc", "run_fiberspectrograph"]
 import asyncio
 import io
 import pathlib
+import os
 
 import astropy.units as u
 
@@ -270,7 +271,7 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
         )
         try:
             await self.s3bucket.upload(fileobj=fileobj, key=key)
-            url = f"s3://{self.s3bucket.name}/{key}"
+            url = f"{os.environ['S3_ENDPOINT_URL']}/{self.s3bucket.name}/{key}"
             await self.evt_largeFileObjectAvailable.set_write(
                 url=url, generator=self.generator_name
             )
