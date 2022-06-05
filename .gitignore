@@ -8,6 +8,7 @@ config.log
 *.pyc
 *_wrap.cc
 *Lib.py
+*.log
 
 # Built by sconsUtils
 version.py
@@ -15,10 +16,10 @@ version.py
 # Pytest
 tests/.tests
 pytest_session.txt
-.cache/
+.cache
+.hypothesis
 .pytest_cache
 .coverage
 
-# These get produced by opensplice when we are running the CSC.
-ospl-error.log
-ospl-info.log
+# Editors
+.vscode

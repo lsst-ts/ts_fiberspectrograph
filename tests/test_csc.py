@@ -429,7 +429,7 @@ class TestFiberSpectrographCsc(
         await self.check_bin_script(
             name="FiberSpectrograph",
             index=-1,
-            exe_name="run_FiberSpectrograph.py",
+            exe_name="run_fiberspectrograph",
             cmdline_args=("--simulate", "3"),
         )
 
