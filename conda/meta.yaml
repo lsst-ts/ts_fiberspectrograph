@@ -7,6 +7,7 @@ source:
   path: ../
 
 build:
+  noarch: generic
   script: python -m pip install --no-deps --ignore-installed .
   entry_points:
   - run_fiberspectrograph = lsst.ts.FiberSpectrograph:run_fiberspectrograph
