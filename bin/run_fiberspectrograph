@@ -21,8 +21,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """The runner for the Fiber Spectrograph CSC."""
-import asyncio
+from lsst.ts.FiberSpectrograph import run_fiberspectrograph
 
-from lsst.ts.FiberSpectrograph import FiberSpectrographCsc
 
-asyncio.run(FiberSpectrographCsc.amain(index=True))
+run_fiberspectrograph()

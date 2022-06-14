@@ -6,6 +6,21 @@
 Version History
 ###############
 
+v0.7.0
+------
+
+Changes:
+
+* Rename the command-line script to run_fiberspectrograph (lowercase and no ".py" suffix).
+* Add a continuous integration Jenkinsfile.
+* Build with pyproject.toml.
+
+Requires:
+
+* ts_salobj 7
+* ts_idl 1
+* FiberSpectrograph IDL files built with ts_xml 11
+
 v0.6.1
 ------
 

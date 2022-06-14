@@ -1,47 +1,42 @@
 {% set data= load_setup_py_data() %}
 package:
-    name: ts-fiberspectrograph
-    version: {{ data.get('version') }}
+  name: ts-fiberspectrograph
+  version: {{ data.get('version') }}
 
 source:
-    path: ../
+  path: ../
 
 build:
-    script: python -m pip install --no-deps --ignore-installed .
-    script_env:
-        - PATH
-        - PYTHONPATH
-        - LD_LIBRARY_PATH
-        - OSPL_HOME
-        - PYTHON_BUILD_VERSION
-        - PYTHON_BUILD_LOCATION
-        - LSST_DDS_DOMAIN
-        - TS_CONFIG_OCS_DIR
+  noarch: generic
+  script: python -m pip install --no-deps --ignore-installed .
+  entry_points:
+  - run_fiberspectrograph = lsst.ts.FiberSpectrograph:run_fiberspectrograph
 
 test:
-    requires:
-        - ts-conda-build =0.3
-        - ts-dds
-        - ts-idl {{ idl_version }}
-        - ts-salobj {{ salobj_version }}
-    source_files:
-        - python
-        - bin
-        - tests
-        - setup.cfg
-    commands:
-        - py.test
+  requires:
+    - ts-conda-build =0.3
+    - ts-dds
+    - ts-idl {{ idl_version }}
+    - ts-salobj {{ salobj_version }}
+  source_files:
+    - python
+    - bin
+    - tests
+    - setup.cfg
+    - pyproject.toml
+  commands:
+    - py.test
 
 requirements:
-    host:
-        - python
-        - pip
-        - setuptools_scm
-        - setuptools
-        - pytest-runner
-    run:
-        - python
-        - setuptools
-        - setuptools_scm
-        - ts-salobj
-        - ts-idl
+  host:
+    - python
+    - pip
+    - setuptools_scm
+    - setuptools
+    - pytest-runner
+  run:
+    - python
+    - setuptools
+    - setuptools_scm
+    - ts-salobj
+    - ts-idl
