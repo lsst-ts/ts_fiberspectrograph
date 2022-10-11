@@ -1,16 +1,16 @@
-.. py:currentmodule:: lsst.ts.FiberSpectrograph
+.. py:currentmodule:: lsst.ts.fiberspectrograph
 
-.. _lsst.ts.FiberSpectrograph:
+.. _lsst.ts.fiberspectrograph:
 
 #########################
-lsst.ts.FiberSpectrograph
+lsst.ts.fiberspectrograph
 #########################
 
 Commandable SAL Component (CSC) to control the fiber spectrographs that are used to determine the wavelengths of the LSST calibration lamps and lasers.
 
-.. _lsst.ts.FiberSpectrograph-using:
+.. _lsst.ts.fiberspectrograph-using:
 
-Using lsst.ts.FiberSpectrograph
+Using lsst.ts.fiberspectrograph
 ===============================
 
 .. toctree::
@@ -18,14 +18,14 @@ Using lsst.ts.FiberSpectrograph
 
 The Avantes `Sensline <https://www.avantes.com/products/spectrometers/sensline/item/333-avaspec-uls-tec>`_ spectrographs are USB connected devices, controlled via a vendor-supplied linux library written in C.
 This library, ``libavs.so``, must be installed in ``/usr/local/lib``.
-See `~lsst.ts.FiberSpectrograph.AvsFiberSpectrograph` for information about library version compatibility.
+See `~lsst.ts.fiberspectrograph.AvsFiberSpectrograph` for information about library version compatibility.
 
 .. _device-communication:
 
 Device Communication
 --------------------
 
-The CSC communicates with a connected device via an `Resource acquisition is initialization (RAII) <https://en.wikipedia.org/wiki/Resource_acquisition_is_initialization>`_ controller class, `~lsst.ts.FiberSpectrograph.AvsFiberSpectrograph`, which manages the device state, exposures, and error return codes.
+The CSC communicates with a connected device via an `Resource acquisition is initialization (RAII) <https://en.wikipedia.org/wiki/Resource_acquisition_is_initialization>`_ controller class, `~lsst.ts.fiberspectrograph.AvsFiberSpectrograph`, which manages the device state, exposures, and error return codes.
 As an RAII class, a successful instantiation of the class means that the device is ready for use, and communication errors typically require destroying the instance and creating a new one to re-connect.
 The CSC manages this via its states: transitioning to the DISABLED state creates a device connection, while transitioning to any non-ENABLED state closes the connection.
 
@@ -59,7 +59,7 @@ This appears to be a limitation of the library or device itself: the ``AVS_GetPa
 Cooling and status
 ------------------
 
-The `~lsst.ts.FiberSpectrograph.FiberSpectrographCsc` telemetry loop outputs the device temperature and setpoint every 10 seconds.
+The `~lsst.ts.fiberspectrograph.FiberSpectrographCsc` telemetry loop outputs the device temperature and setpoint every 10 seconds.
 We have not currently implemented a facility for modifying the setpoint temperature: the device default is 5°C.
 
 .. _error-codes:
@@ -76,8 +76,8 @@ For a detailed description of what each error code means, consult section ``3.6.
 Simulator
 ---------
 
-The CSC implements a simulator mode using the same `unittest.mock` framework that the tests use to fake a connected spectrograph, via the `~lsst.ts.FiberSpectrograph.AvsSimulator` class.
-`~lsst.ts.FiberSpectrograph.AvsSimulator` mocks the loading of the ``libavs.so`` C library entirely, so the simulator must be activated before a device is connected, i.e. when the CSC is in STANDBY mode.
+The CSC implements a simulator mode using the same `unittest.mock` framework that the tests use to fake a connected spectrograph, via the `~lsst.ts.fiberspectrograph.AvsSimulator` class.
+`~lsst.ts.fiberspectrograph.AvsSimulator` mocks the loading of the ``libavs.so`` C library entirely, so the simulator must be activated before a device is connected, i.e. when the CSC is in STANDBY mode.
 The simulator is configured for a "no error conditions" use case, where all functions return success codes and reasonable values.
 
 .. _caveats:
@@ -120,25 +120,25 @@ At this time Astropy does not natively support this WCS but the data and wavelen
        # Force 1,N array to shape N
        wavelengths = wavelengths.flatten()
 
-.. _lsst.ts.FiberSpectrograph-contributing:
+.. _lsst.ts.fiberspectrograph-contributing:
 
 Contributing
 ============
 
-``lsst.ts.FiberSpectrograph`` is developed at https://github.com/lsst-ts/ts_FiberSpectrograph.
-You can find Jira issues for this module under the `FiberSpectrograph <https://jira.lsstcorp.org/issues/?jql=labels%20%3D%20FiberSpectrograph>`_ label.
+``lsst.ts.fiberspectrograph`` is developed at https://github.com/lsst-ts/ts_fiberspectrograph.
+You can find Jira issues for this module under the `fiberspectrograph <https://jira.lsstcorp.org/issues/?jql=labels%20%3D%20fiberspectrograph>`_ label.
 
 .. If there are topics related to developing this module (rather than using it), link to this from a toctree placed here.
 
 .. .. toctree::
 ..    :maxdepth: 1
 
-.. _lsst.ts.FiberSpectrograph-pyapi:
+.. _lsst.ts.fiberspectrograph-pyapi:
 
 Python API reference
 ====================
 
-.. automodapi:: lsst.ts.FiberSpectrograph
+.. automodapi:: lsst.ts.fiberspectrograph
    :no-main-docstr:
 
 Version History

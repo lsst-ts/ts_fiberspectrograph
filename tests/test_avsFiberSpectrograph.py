@@ -1,4 +1,4 @@
-# This file is part of ts_FiberSpectrograph.
+# This file is part of ts_fiberspectrograph.
 #
 # Developed for Vera C. Rubin Observatory Telescope and Site Systems.
 # This product includes software developed by the LSST Project
@@ -33,12 +33,12 @@ import astropy.units as u
 import numpy as np
 import pytest
 
-from lsst.ts.FiberSpectrograph import AvsSimulator
-from lsst.ts.FiberSpectrograph import AvsFiberSpectrograph
-from lsst.ts.FiberSpectrograph.avsFiberSpectrograph import MIN_DURATION, MAX_DURATION
-from lsst.ts.FiberSpectrograph import AvsReturnCode, AvsReturnError
-from lsst.ts.FiberSpectrograph import AvsDeviceStatus, AvsIdentity
-from lsst.ts.FiberSpectrograph import AvsDeviceConfig, AvsMeasureConfig
+from lsst.ts.fiberspectrograph import AvsSimulator
+from lsst.ts.fiberspectrograph import AvsFiberSpectrograph
+from lsst.ts.fiberspectrograph.avsFiberSpectrograph import MIN_DURATION, MAX_DURATION
+from lsst.ts.fiberspectrograph import AvsReturnCode, AvsReturnError
+from lsst.ts.fiberspectrograph import AvsDeviceStatus, AvsIdentity
+from lsst.ts.fiberspectrograph import AvsDeviceConfig, AvsMeasureConfig
 
 
 class TestAvsFiberSpectrograph(unittest.IsolatedAsyncioTestCase):

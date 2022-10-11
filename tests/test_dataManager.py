@@ -1,4 +1,4 @@
-# This file is part of ts_FiberSpectrograph.
+# This file is part of ts_fiberspectrograph.
 #
 # Developed for Vera C. Rubin Observatory Telescope and Site Systems.
 # This product includes software developed by the LSST Project
@@ -26,7 +26,7 @@ import astropy.time
 import astropy.units as u
 import numpy as np
 
-from lsst.ts.FiberSpectrograph import SpectrographData, DataManager
+from lsst.ts.fiberspectrograph import SpectrographData, DataManager
 
 
 class TestDataManager(unittest.TestCase):

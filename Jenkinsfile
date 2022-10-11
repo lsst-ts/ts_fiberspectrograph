@@ -24,7 +24,7 @@ pipeline {
     }
     environment {
         // Python module name.
-        MODULE_NAME = 'lsst.ts.FiberSpectrograph'
+        MODULE_NAME = 'lsst.ts.fiberspectrograph'
         // Space-separated list of SAL component names for all IDL files required.
         IDL_NAMES = 'FiberSpectrograph'
         // Product name for documentation upload; the associated

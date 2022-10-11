@@ -1,6 +1,6 @@
-.. py:currentmodule:: lsst.ts.FiberSpectrograph
+.. py:currentmodule:: lsst.ts.fiberspectrograph
 
-.. _lsst.ts.FiberSpectrograph.version_history:
+.. _lsst.ts.fiberspectrograph.version_history:
 
 ###############
 Version History
