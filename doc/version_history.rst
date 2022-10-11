@@ -6,10 +6,20 @@
 Version History
 ###############
 
-v0.7.0
+v0.8.0
 ------
 
-Changes:
+* Rename the package from ts_FiberSpectrograph to ts_fiberspectrograph.
+* Jenkins CI file: change HOME to WHOME everywhere except the cleanup section.
+
+Requires:
+
+* ts_salobj 7
+* ts_idl 1
+* FiberSpectrograph IDL files built with ts_xml 11
+
+v0.7.0
+------
 
 * Rename the command-line script to run_fiberspectrograph (lowercase and no ".py" suffix).
 * Add a continuous integration Jenkinsfile.
@@ -24,8 +34,6 @@ Requires:
 v0.6.1
 ------
 
-Changes:
-
 * Fixed the formatting of a src file so that black 22.3.0 is happy with it.
 
 Requires:
@@ -36,8 +44,6 @@ Requires:
 
 v0.6.0
 ------
-
-Changes:
 
 * Update for ts_salobj v7, which is required.
   This also requires ts_xml 11.
@@ -51,8 +57,6 @@ Requires:
 
 v0.5.0
 ------
-
-Changes:
 
 * Update test_csc.py for ts_salobj 8.6, which is now required.
 * Use ts_utils.
@@ -69,8 +73,6 @@ Requires:
 v0.4.1
 ------
 
-Changes:
-
 * Use `unittest.IsolatedAsyncioTestCase` instead of the abandoned asynctest package.
 * Use pre-commit to enforce black formatting; see the README.md for instructions.
 * Format the code with black 20.8b1.
@@ -85,8 +87,6 @@ Requires:
 v0.4.0
 ------
 
-Changes:
-
 * Store the CSC configuration schema in code.
   This requires ts_salobj 6.3.
 
@@ -99,8 +99,6 @@ Requires:
 
 v0.3.2
 ------
-
-Changes:
 
 * `FiberSpectrographCsc`: modernize handling of simulation mode.
 * `FiberSpectrographCsc`: set ``version`` class variable.
@@ -117,16 +115,12 @@ Requires:
 v0.3.1
 ------
 
-Changes:
-
 * Updated Jenkinsfile.conda to use Jenkins Shared Library
 * Pinned the ts-idl and ts-salobj version in conda recipe
 * Add missing required dependency in EUPs table file
 
 v0.3.0
 ------
-
-Changes:
 
 * Updated for ts_salobj v5.14.0.
   Build the ``salobj.AsyncS3Bucket`` with ``create=True`` when mocking the S3 server.
@@ -141,8 +135,6 @@ Requires:
 
 v0.2.1
 ------
-
-Changes:
 
 * Add ``tests/test_black.py`` to verify that files are formatted with black.
   This requires ts_salobj 5.11 or later.
