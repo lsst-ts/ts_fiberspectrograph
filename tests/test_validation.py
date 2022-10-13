@@ -1,4 +1,4 @@
-# This file is part of ts_FiberSpectrograph.
+# This file is part of ts_fiberspectrograph.
 #
 # Developed for Vera C. Rubin Observatory Telescope and Site Systems.
 # This product includes software developed by the LSST Project
@@ -25,14 +25,14 @@ import jsonschema
 import pytest
 
 from lsst.ts import salobj
-from lsst.ts import FiberSpectrograph
+from lsst.ts import fiberspectrograph
 
 
 class ValidationTestCase(unittest.TestCase):
     """Test validation of the config schema."""
 
     def setUp(self):
-        self.schema = FiberSpectrograph.CONFIG_SCHEMA
+        self.schema = fiberspectrograph.CONFIG_SCHEMA
         self.validator = salobj.StandardValidator(schema=self.schema)
 
     def test_basics(self):

@@ -1,4 +1,4 @@
-# ts_FiberSpectrograph
+# ts_fiberspectrograph
 
 Python-based interface for the Avantes fiber spectrograph and a Configurable Commandable SAL Component (CSC) to control it.
 

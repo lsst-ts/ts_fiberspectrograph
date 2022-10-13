@@ -1,4 +1,4 @@
-# This file is part of ts_FiberSpectrograph.
+# This file is part of ts_fiberspectrograph.
 #
 # Developed for Vera C. Rubin Observatory Telescope and Site Systems.
 # This product includes software developed by the LSST Project
@@ -29,7 +29,7 @@ import astropy.io.fits
 import pytest
 
 from lsst.ts import salobj
-from lsst.ts import FiberSpectrograph
+from lsst.ts import fiberspectrograph
 from lsst.ts.idl.enums.FiberSpectrograph import ExposureState
 
 STD_TIMEOUT = 5  # standard command timeout (sec)
@@ -44,7 +44,7 @@ class TestFiberSpectrographCsc(
     """Test the functionality of the FiberSpectrographCsc, using a mocked
     spectrograph connection.
 
-    These tests use an instance of `lsst.ts.FiberSpectrograph.AvsSimulator`,
+    These tests use an instance of `lsst.ts.fiberspectrograph.AvsSimulator`,
     to mock patch the fiber spectrograph vendor C library.
     The CSC uses the same simulator class when in ``Spectrograph``
     simulation mode to simulate the fiber spectrograph, but that simulator
@@ -56,12 +56,12 @@ class TestFiberSpectrographCsc(
     """
 
     def setUp(self):
-        self.patcher = FiberSpectrograph.AvsSimulator()
+        self.patcher = fiberspectrograph.AvsSimulator()
         self.patch = self.patcher.start(testCase=self)
         super().setUp()
 
     def basic_make_csc(self, initial_state, config_dir, simulation_mode, index=-1):
-        return FiberSpectrograph.FiberSpectrographCsc(
+        return fiberspectrograph.FiberSpectrographCsc(
             initial_state=initial_state,
             config_dir=config_dir,
             simulation_mode=simulation_mode,
@@ -93,7 +93,7 @@ class TestFiberSpectrographCsc(
         ):
             await self.assert_next_sample(
                 topic=self.remote.evt_softwareVersions,
-                cscVersion=FiberSpectrograph.__version__,
+                cscVersion=fiberspectrograph.__version__,
                 subsystemVersions="",
             )
 
@@ -107,12 +107,12 @@ class TestFiberSpectrographCsc(
         """
         # Mock two connected devices (we will connect to the second).
         n_devices = 2
-        index = FiberSpectrograph.SalIndex.BROAD
-        serial_number = FiberSpectrograph.SERIAL_NUMBERS[index]
-        id1 = FiberSpectrograph.AvsIdentity(
+        index = fiberspectrograph.SalIndex.BROAD
+        serial_number = fiberspectrograph.SERIAL_NUMBERS[index]
+        id1 = fiberspectrograph.AvsIdentity(
             bytes(str(serial_number), "ascii"),
             b"Fake Spectrograph 2",
-            FiberSpectrograph.AvsDeviceStatus.USB_AVAILABLE.value,
+            fiberspectrograph.AvsDeviceStatus.USB_AVAILABLE.value,
         )
 
         def mock_getList(a_listSize, a_pRequiredSize, a_pList):
@@ -134,7 +134,7 @@ class TestFiberSpectrographCsc(
         switching the CSC from STANDBY to DISABLED.
         """
         self.patch.return_value.AVS_Activate.return_value = (
-            FiberSpectrograph.AvsReturnCode.invalidHandle.value
+            fiberspectrograph.AvsReturnCode.invalidHandle.value
         )
         async with self.make_csc(
             initial_state=salobj.State.STANDBY, config_dir=TEST_CONFIG_DIR
@@ -164,8 +164,8 @@ class TestFiberSpectrographCsc(
         """
         async with self.make_csc(
             initial_state=salobj.State.ENABLED,
-            simulation_mode=FiberSpectrograph.SimulationMode.S3Server,
-            index=FiberSpectrograph.SalIndex.RED,
+            simulation_mode=fiberspectrograph.SimulationMode.S3Server,
+            index=fiberspectrograph.SalIndex.RED,
             config_dir=TEST_CONFIG_DIR,
         ):
             # Check that we are properly in ENABLED at the start
@@ -228,8 +228,8 @@ class TestFiberSpectrographCsc(
         """
         async with self.make_csc(
             initial_state=salobj.State.ENABLED,
-            simulation_mode=FiberSpectrograph.SimulationMode.S3Server,
-            index=FiberSpectrograph.SalIndex.RED,
+            simulation_mode=fiberspectrograph.SimulationMode.S3Server,
+            index=fiberspectrograph.SalIndex.RED,
             config_dir=TEST_CONFIG_DIR,
         ):
             # Check that we are properly in ENABLED at the start
@@ -303,7 +303,7 @@ class TestFiberSpectrographCsc(
         # raises an exception inside `expose()`.
         self.patch.return_value.AVS_GetScopeData.side_effect = None
         self.patch.return_value.AVS_GetScopeData.return_value = (
-            FiberSpectrograph.AvsReturnCode.ERR_INVALID_MEAS_DATA.value
+            fiberspectrograph.AvsReturnCode.ERR_INVALID_MEAS_DATA.value
         )
         async with self.make_csc(
             initial_state=salobj.State.ENABLED, config_dir=TEST_CONFIG_DIR
@@ -330,8 +330,8 @@ class TestFiberSpectrographCsc(
                 flush=False, timeout=STD_TIMEOUT
             )
             errorMsg = str(
-                FiberSpectrograph.AvsReturnError(
-                    FiberSpectrograph.AvsReturnCode.ERR_INVALID_MEAS_DATA.value,
+                fiberspectrograph.AvsReturnError(
+                    fiberspectrograph.AvsReturnCode.ERR_INVALID_MEAS_DATA.value,
                     "GetScopeData",
                 )
             )
