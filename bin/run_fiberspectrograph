@@ -21,7 +21,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """The runner for the Fiber Spectrograph CSC."""
-from lsst.ts.FiberSpectrograph import run_fiberspectrograph
+from lsst.ts.fiberspectrograph import run_fiberspectrograph
 
 
 run_fiberspectrograph()

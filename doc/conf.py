@@ -4,9 +4,9 @@ This configuration only affects single-package Sphinx documentation builds.
 """
 
 from documenteer.conf.pipelinespkg import *  # noqa
-import lsst.ts.FiberSpectrograph  # noqa
+import lsst.ts.fiberspectrograph  # noqa
 
-project = "ts_FiberSpectrograph"
+project = "ts_fiberspectrograph"
 html_theme_options["logotext"] = project  # type: ignore # noqa
 html_title = project
 html_short_title = project
