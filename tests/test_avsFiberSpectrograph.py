@@ -149,9 +149,7 @@ class TestAvsFiberSpectrograph(unittest.IsolatedAsyncioTestCase):
         """
         serial_number = "54321"
 
-        with pytest.raises(
-            LookupError, match=f"Device serial number {serial_number} not found"
-        ):
+        with pytest.raises(LookupError, match=f"Device {serial_number=} not found"):
             AvsFiberSpectrograph(serial_number=serial_number)
         self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
         self.patch.return_value.AVS_GetList.assert_called_once()

@@ -188,13 +188,21 @@ class TestFiberSpectrographCsc(
                 flush=False, timeout=STD_TIMEOUT
             )
             parsed_url = urllib.parse.urlparse(data.url)
-            assert parsed_url.scheme == "s3"
-            assert parsed_url.netloc == self.csc.s3bucket.name
+            assert parsed_url.scheme == "https"
+            assert (
+                parsed_url.netloc
+                == urllib.parse.urlparse(
+                    self.csc.s3bucket.service_resource.meta.client.meta.endpoint_url
+                ).netloc
+            )
 
             # Minimally check the data written to s3
-            key = parsed_url.path[1:]  # Strip leading "/"
+            key = parsed_url.path[1:].split("/", maxsplit=1)[
+                1
+            ]  # Strip leading "rubinobs-lfa-test/"
             fileobj = await self.csc.s3bucket.download(key)
             hdulist = astropy.io.fits.open(fileobj)
+
             assert len(hdulist) == 2
             assert hdulist[0].header["ORIGIN"] == "FiberSpectrographCsc"
             assert hdulist[0].header["INSTRUME"] == "FiberSpectrograph.Red"
