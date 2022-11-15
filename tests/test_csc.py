@@ -24,6 +24,7 @@ import itertools
 import pathlib
 import unittest
 import urllib.parse
+import os
 
 import astropy.io.fits
 import pytest
@@ -168,6 +169,9 @@ class TestFiberSpectrographCsc(
             index=fiberspectrograph.SalIndex.RED,
             config_dir=TEST_CONFIG_DIR,
         ):
+
+            # Declare system variable for s3
+            os.environ["S3_ENDPOINT_URL"] = "https://s3.tu.lsst.org"
             # Check that we are properly in ENABLED at the start
             await self.assert_next_summary_state(salobj.State.ENABLED)
             assert self.csc.s3bucket_name == self.csc.s3bucket.name
@@ -188,8 +192,8 @@ class TestFiberSpectrographCsc(
                 flush=False, timeout=STD_TIMEOUT
             )
             parsed_url = urllib.parse.urlparse(data.url)
-            assert parsed_url.scheme == "s3"
-            assert parsed_url.netloc == self.csc.s3bucket.name
+            assert parsed_url.scheme == os.environ["S3_ENDPOINT_URL"].split('://')[0]
+            assert parsed_url.netloc == os.environ["S3_ENDPOINT_URL"].split('://')[1]
 
             # Minimally check the data written to s3
             key = parsed_url.path[1:]  # Strip leading "/"
