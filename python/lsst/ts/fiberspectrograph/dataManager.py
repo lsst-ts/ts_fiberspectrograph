@@ -106,8 +106,10 @@ class DataManager:
         # TODO: it would be good to include the dataclass docstrings
         # as comments on each of these, but pydoc can't see them.
         hdr["FORMAT_V"] = FORMAT_VERSION
+        hdr["OBSERVAT"] = "Vera C. Rubin Observatory"
         hdr["INSTRUME"] = self.instrument
         hdr["ORIGIN"] = self.origin
+        hdr["LOCATN"] = (None, "Location of Instrument")
         hdr["DETSIZE"] = data.n_pixels
         hdr["DATE-BEG"] = astropy.time.Time(data.date_begin).tai.fits
         hdr["DATE-END"] = astropy.time.Time(data.date_end).tai.fits

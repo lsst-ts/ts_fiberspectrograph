@@ -6,6 +6,10 @@
 Version History
 ###############
 
+v0.9.0
+------
+* Fix fits file header to match Vera C. Rubin format
+
 v0.8.0
 ------
 
