@@ -24,6 +24,7 @@ import itertools
 import pathlib
 import unittest
 import urllib.parse
+import unittest.mock
 
 import astropy.io.fits
 import pytest
@@ -171,6 +172,9 @@ class TestFiberSpectrographCsc(
             # Check that we are properly in ENABLED at the start
             await self.assert_next_summary_state(salobj.State.ENABLED)
             assert self.csc.s3bucket_name == self.csc.s3bucket.name
+            self.csc.image_service_client.get_next_obs_id = unittest.mock.AsyncMock(
+                return_value=([1], "FS1_O_20221130_000001")
+            )
 
             duration = 2  # seconds
             task = asyncio.create_task(
@@ -243,6 +247,9 @@ class TestFiberSpectrographCsc(
             # Check that we are properly in ENABLED at the start
             await self.assert_next_summary_state(salobj.State.ENABLED)
             assert self.csc.s3bucket_name == self.csc.s3bucket.name
+            self.csc.image_service_client.get_next_obs_id = unittest.mock.AsyncMock(
+                return_value=([1], "FS1_O_20221130_000001")
+            )
 
             def bad_upload(*args, **kwargs):
                 raise RuntimeError("Failed on purpose")

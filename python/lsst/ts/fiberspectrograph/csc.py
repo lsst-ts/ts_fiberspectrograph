@@ -28,8 +28,8 @@ import pathlib
 import astropy.units as u
 
 from lsst.ts.idl.enums.FiberSpectrograph import ExposureState
-from lsst.ts import salobj
 from lsst.ts import utils
+from lsst.ts import salobj
 from . import constants
 from . import __version__
 from .avsSimulator import AvsSimulator
@@ -128,6 +128,9 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
             s3instance=config.s3instance,
         )
         self.config = config
+        self.image_service_client = utils.ImageNameServiceClient(
+            config.image_service_url, self.salinfo.index, "FS"
+        )
 
     async def handle_summary_state(self):
         # disabled: connect and send telemetry, but no commands allowed.
@@ -257,6 +260,10 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
         upload succeeds.
         """
         hdulist = self.data_manager.make_hdulist(spec_data)
+        image_sequence_array, data = await self.image_service_client.get_next_obs_id(
+            num_images=1
+        )
+        hdulist[0].header["OBSID"] = image_sequence_array[0]
         fileobj = io.BytesIO()
         hdulist.writeto(fileobj)
         fileobj.seek(0)
