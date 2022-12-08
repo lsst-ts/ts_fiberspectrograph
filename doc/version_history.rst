@@ -9,6 +9,8 @@ Version History
 v0.9.0
 ------
 * Fix fits file header to match Vera C. Rubin format
+* Add OBSID to fits header using utils.ImageNameServiceClient.
+* Modernize conda build.
 
 v0.8.0
 ------
