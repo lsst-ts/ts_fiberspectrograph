@@ -34,9 +34,8 @@ type: object
 properties:
   s3instance:
     description: >-
-      Large File Annex S3 instance, for example "summit", "ncsa", or "tucson".
+      Large File Annex S3 instance, for example "cp", "tuc" or  "ls".
     type: string
-    default: "summit"
     pattern: "^[a-z0-9][.a-z0-9]*[a-z0-9]$"
   image_service_url:
     description: The Image service host.
