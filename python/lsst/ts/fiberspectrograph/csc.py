@@ -129,7 +129,7 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
         )
         self.config = config
         self.image_service_client = utils.ImageNameServiceClient(
-            config.image_service_url, self.salinfo.index, "FS"
+            config.image_service_url, self.salinfo.index, "FiberSpectrograph"
         )
 
     async def handle_summary_state(self):
