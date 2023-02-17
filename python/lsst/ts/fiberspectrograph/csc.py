@@ -26,16 +26,13 @@ import io
 import pathlib
 
 import astropy.units as u
-
+from lsst.ts import salobj, utils
 from lsst.ts.idl.enums.FiberSpectrograph import ExposureState
-from lsst.ts import salobj
-from lsst.ts import utils
-from . import constants
-from . import __version__
-from .avsSimulator import AvsSimulator
+
+from . import __version__, constants, dataManager
 from .avsFiberSpectrograph import AvsFiberSpectrograph
+from .avsSimulator import AvsSimulator
 from .config_schema import CONFIG_SCHEMA
-from . import dataManager
 
 
 class FiberSpectrographCsc(salobj.ConfigurableCsc):

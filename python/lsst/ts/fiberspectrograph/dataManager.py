@@ -24,11 +24,10 @@ __all__ = ["SpectrographData", "DataManager"]
 import dataclasses
 
 import astropy.io.fits
-import astropy.time
 import astropy.table
+import astropy.time
 import astropy.units as u
 import numpy as np
-
 
 # The version of the FITS file format produced by this class.
 FORMAT_VERSION = 1

@@ -23,9 +23,7 @@ import unittest
 
 import jsonschema
 import pytest
-
-from lsst.ts import salobj
-from lsst.ts import fiberspectrograph
+from lsst.ts import fiberspectrograph, salobj
 
 
 class ValidationTestCase(unittest.TestCase):
