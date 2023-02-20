@@ -40,9 +40,13 @@ properties:
   image_service_url:
     description: The Image service host.
     type: string
+  telescope:
+    description: Telescope where the fiber spectrograph is being operated
+    type: string
 required:
   - s3instance
   - image_service_url
+  - telescope
 additionalProperties: false
 """
 )

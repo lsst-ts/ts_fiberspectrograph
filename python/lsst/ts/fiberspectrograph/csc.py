@@ -100,7 +100,9 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
         self.s3bucket = None  # Set by `handle_summary_state`.
 
         self.data_manager = dataManager.DataManager(
-            instrument=f"FiberSpectrograph.{self.band_name}", origin=type(self).__name__
+            instrument=f"FiberSpectrograph.{self.band_name}", 
+            origin=type(self).__name__,
+            serial=self.serial_number
         )
         self.telemetry_loop_task = utils.make_done_future()
         self.telemetry_interval = 10  # seconds between telemetry output
@@ -261,6 +263,8 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
             num_images=1
         )
         hdulist[0].header["OBSID"] = image_sequence_array[0]
+        hdulist[0].header["TELCODE"] = self.config.location
+        hdulist[0].header["SEQNUM"] = image_sequence_array[0].split("-")[-1]
         fileobj = io.BytesIO()
         hdulist.writeto(fileobj)
         fileobj.seek(0)

@@ -78,9 +78,10 @@ class DataManager:
     wcs_column_name = "wavelength"
     """Name of the table column containing the wavelength information."""
 
-    def __init__(self, instrument, origin):
+    def __init__(self, instrument, origin, serial):
         self.instrument = instrument
         self.origin = origin
+        self.serial = serial
 
     def make_hdulist(self, data):
         """Generate a FITS hdulist built from SpectrographData.
@@ -106,18 +107,21 @@ class DataManager:
         # as comments on each of these, but pydoc can't see them.
         hdr["FORMAT_V"] = FORMAT_VERSION
         hdr["OBSERVAT"] = "Vera C. Rubin Observatory"
-        hdr["INSTRUME"] = self.instrument
-        hdr["ORIGIN"] = self.origin
-        hdr["LOCATN"] = (None, "Location of Instrument")
+        hdr["INSTRUME"] = (self.instrument, 'Type of Instrument.')
+        hdr["SERIAL"] = (self.serial, 'Serial Number of Spectrograph.')
+        hdr["ORIGIN"] = (self.origin, 'Name of the program that produced this data.')
+        hdr["LOCATN"] = (None, "Location of Instrument.")
         hdr["DETSIZE"] = data.n_pixels
         hdr["DATE-BEG"] = astropy.time.Time(data.date_begin).tai.fits
         hdr["DATE-END"] = astropy.time.Time(data.date_end).tai.fits
-        hdr["EXPTIME"] = data.duration
+        hdr["DAYOBS"] = astropy.time.Time(data.date_begin).tai.strftime('%Y%m%d')
+        hdr["CONTRLLR"] = "C" # Don't really know what this should be
+        hdr["EXPTIME"] = (data.duration, 'Duration of scan.')
         hdr["TIMESYS"] = "TAI"
-        hdr["IMGTYPE"] = data.type
+        hdr["IMGTYPE"] = 'spectrum' # Until something upstream can set this more descriptively
         hdr["SOURCE"] = data.source
-        hdr["TEMP_SET"] = data.temperature_setpoint.to_value(u.deg_C)
-        hdr["CCDTEMP"] = data.temperature.to_value(u.deg_C)
+        hdr["TEMP_SET"] = (data.temperature_setpoint.to_value(u.deg_C), 'Temperature set point [C].')
+        hdr["CCDTEMP"] = (data.temperature.to_value(u.deg_C), 'Measured Temperature [C].')
 
         # WCS headers - Use -TAB WCS definition
         wcs_cards = [
