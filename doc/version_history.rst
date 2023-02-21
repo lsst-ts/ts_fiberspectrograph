@@ -6,6 +6,21 @@
 Version History
 ###############
 
+v0.9.0
+------
+
+* Fix fits file header to match Vera C. Rubin format
+* Add OBSID to fits header using utils.ImageNameServiceClient.
+* Modernize conda build.
+* pre-commit: update black to 23.1.0, isort to 5.12.0, mypy to 1.0.0, and pre-commit-hooks to v4.4.0.
+* ``Jenkinsfile``: do not run as root.
+
+Requires:
+
+* ts_salobj 7
+* ts_idl 1
+* FiberSpectrograph IDL files built with ts_xml 11
+
 v0.8.0
 ------
 

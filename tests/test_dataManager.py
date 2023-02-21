@@ -21,12 +21,11 @@
 
 import unittest
 
-from astropy.table import QTable
 import astropy.time
 import astropy.units as u
 import numpy as np
-
-from lsst.ts.fiberspectrograph import SpectrographData, DataManager
+from astropy.table import QTable
+from lsst.ts.fiberspectrograph import DataManager, SpectrographData
 
 
 class TestDataManager(unittest.TestCase):

@@ -32,13 +32,17 @@ import unittest.mock
 import astropy.units as u
 import numpy as np
 import pytest
-
-from lsst.ts.fiberspectrograph import AvsSimulator
-from lsst.ts.fiberspectrograph import AvsFiberSpectrograph
-from lsst.ts.fiberspectrograph.avsFiberSpectrograph import MIN_DURATION, MAX_DURATION
-from lsst.ts.fiberspectrograph import AvsReturnCode, AvsReturnError
-from lsst.ts.fiberspectrograph import AvsDeviceStatus, AvsIdentity
-from lsst.ts.fiberspectrograph import AvsDeviceConfig, AvsMeasureConfig
+from lsst.ts.fiberspectrograph import (
+    AvsDeviceConfig,
+    AvsDeviceStatus,
+    AvsFiberSpectrograph,
+    AvsIdentity,
+    AvsMeasureConfig,
+    AvsReturnCode,
+    AvsReturnError,
+    AvsSimulator,
+)
+from lsst.ts.fiberspectrograph.avsFiberSpectrograph import MAX_DURATION, MIN_DURATION
 
 
 class TestAvsFiberSpectrograph(unittest.IsolatedAsyncioTestCase):
@@ -149,9 +153,7 @@ class TestAvsFiberSpectrograph(unittest.IsolatedAsyncioTestCase):
         """
         serial_number = "54321"
 
-        with pytest.raises(
-            LookupError, match=f"Device serial number {serial_number} not found"
-        ):
+        with pytest.raises(LookupError, match=f"Device {serial_number=} not found"):
             AvsFiberSpectrograph(serial_number=serial_number)
         self.patch.return_value.AVS_UpdateUSBDevices.assert_called_once()
         self.patch.return_value.AVS_GetList.assert_called_once()

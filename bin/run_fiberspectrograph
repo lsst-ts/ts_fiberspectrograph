@@ -23,5 +23,4 @@
 """The runner for the Fiber Spectrograph CSC."""
 from lsst.ts.fiberspectrograph import run_fiberspectrograph
 
-
 run_fiberspectrograph()

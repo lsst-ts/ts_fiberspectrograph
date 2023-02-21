@@ -23,13 +23,12 @@ import asyncio
 import itertools
 import pathlib
 import unittest
+import unittest.mock
 import urllib.parse
 
 import astropy.io.fits
 import pytest
-
-from lsst.ts import salobj
-from lsst.ts import fiberspectrograph
+from lsst.ts import fiberspectrograph, salobj
 from lsst.ts.idl.enums.FiberSpectrograph import ExposureState
 
 STD_TIMEOUT = 5  # standard command timeout (sec)
@@ -171,6 +170,9 @@ class TestFiberSpectrographCsc(
             # Check that we are properly in ENABLED at the start
             await self.assert_next_summary_state(salobj.State.ENABLED)
             assert self.csc.s3bucket_name == self.csc.s3bucket.name
+            self.csc.image_service_client.get_next_obs_id = unittest.mock.AsyncMock(
+                return_value=([1], "FS1_O_20221130_000001")
+            )
 
             duration = 2  # seconds
             task = asyncio.create_task(
@@ -188,13 +190,21 @@ class TestFiberSpectrographCsc(
                 flush=False, timeout=STD_TIMEOUT
             )
             parsed_url = urllib.parse.urlparse(data.url)
-            assert parsed_url.scheme == "s3"
-            assert parsed_url.netloc == self.csc.s3bucket.name
+            assert parsed_url.scheme == "https"
+            assert (
+                parsed_url.netloc
+                == urllib.parse.urlparse(
+                    self.csc.s3bucket.service_resource.meta.client.meta.endpoint_url
+                ).netloc
+            )
 
             # Minimally check the data written to s3
-            key = parsed_url.path[1:]  # Strip leading "/"
+            key = parsed_url.path[1:].split("/", maxsplit=1)[
+                1
+            ]  # Strip leading "rubinobs-lfa-test/"
             fileobj = await self.csc.s3bucket.download(key)
             hdulist = astropy.io.fits.open(fileobj)
+
             assert len(hdulist) == 2
             assert hdulist[0].header["ORIGIN"] == "FiberSpectrographCsc"
             assert hdulist[0].header["INSTRUME"] == "FiberSpectrograph.Red"
@@ -235,6 +245,9 @@ class TestFiberSpectrographCsc(
             # Check that we are properly in ENABLED at the start
             await self.assert_next_summary_state(salobj.State.ENABLED)
             assert self.csc.s3bucket_name == self.csc.s3bucket.name
+            self.csc.image_service_client.get_next_obs_id = unittest.mock.AsyncMock(
+                return_value=([1], "FS1_O_20221130_000001")
+            )
 
             def bad_upload(*args, **kwargs):
                 raise RuntimeError("Failed on purpose")

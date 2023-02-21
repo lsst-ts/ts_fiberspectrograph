@@ -28,18 +28,21 @@ CONFIG_SCHEMA = yaml.safe_load(
 $schema: http://json-schema.org/draft-07/schema#
 $id: https://github.com/lsst-ts/ts_FiberSpectrograph/blob/master/python/lsst/ts/FiberSpectrograph/schema_config.py  # noqa
 # title must end with one or more spaces followed by the schema version, which must begin with "v"
-title: FiberSpectrograph v2
+title: FiberSpectrograph v3
 description: Schema for FiberSpectrograph configuration files
 type: object
 properties:
   s3instance:
     description: >-
-      Large File Annex S3 instance, for example "summit", "ncsa", or "tucson".
+      Large File Annex S3 instance, for example "cp", "tuc" or  "ls".
     type: string
-    default: "summit"
     pattern: "^[a-z0-9][.a-z0-9]*[a-z0-9]$"
+  image_service_url:
+    description: The Image service host.
+    type: string
 required:
   - s3instance
+  - image_service_url
 additionalProperties: false
 """
 )

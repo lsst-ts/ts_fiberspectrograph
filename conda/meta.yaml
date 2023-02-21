@@ -8,7 +8,7 @@ source:
 
 build:
   noarch: generic
-  script: python -m pip install --no-deps --ignore-installed .
+  script: {{ PYTHON }} -m pip install --no-deps --ignore-installed .
   entry_points:
   - run_fiberspectrograph = lsst.ts.fiberspectrograph:run_fiberspectrograph
 
@@ -25,17 +25,21 @@ test:
     - setup.cfg
     - pyproject.toml
   commands:
-    - py.test
+    - pytest
 
 requirements:
   host:
-    - python
+    - python {{ python }}
     - pip
     - setuptools_scm
     - setuptools
-    - pytest-runner
+  build:
+    - python {{ python }}
+    - setuptools_scm
+    - setuptools
+    - ts-conda-build =0.3
   run:
-    - python
+    - python {{ python }}
     - setuptools
     - setuptools_scm
     - ts-salobj

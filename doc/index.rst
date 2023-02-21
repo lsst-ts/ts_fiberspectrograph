@@ -28,6 +28,7 @@ Device Communication
 The CSC communicates with a connected device via an `Resource acquisition is initialization (RAII) <https://en.wikipedia.org/wiki/Resource_acquisition_is_initialization>`_ controller class, `~lsst.ts.fiberspectrograph.AvsFiberSpectrograph`, which manages the device state, exposures, and error return codes.
 As an RAII class, a successful instantiation of the class means that the device is ready for use, and communication errors typically require destroying the instance and creating a new one to re-connect.
 The CSC manages this via its states: transitioning to the DISABLED state creates a device connection, while transitioning to any non-ENABLED state closes the connection.
+Setting up the udev rules on the machine connected to the devices and running the CSC is described in the README file of the code repository.
 
 Multiple devices can be connected to a single computer (however, see caveats_), with the desired device determined by the index number of the CSC (see SALSubsystems.xml for the index->device mapping).
 The index ``-1`` is special, as a CSC with that index will connect to the only attached USB spectrograph (if multiple devices are attached, ``index=-1`` will raise an error).

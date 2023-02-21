@@ -23,9 +23,7 @@ import unittest
 
 import jsonschema
 import pytest
-
-from lsst.ts import salobj
-from lsst.ts import fiberspectrograph
+from lsst.ts import fiberspectrograph, salobj
 
 
 class ValidationTestCase(unittest.TestCase):
@@ -36,7 +34,10 @@ class ValidationTestCase(unittest.TestCase):
         self.validator = salobj.StandardValidator(schema=self.schema)
 
     def test_basics(self):
-        config = dict(s3instance="a.valid.value")
+        config = dict(
+            s3instance="a.valid.value",
+            image_service_url="http://comcam-mcm.tu.lsst.org",
+        )
         self.validator.validate(config)
 
     def test_invalid_configs(self):
@@ -49,7 +50,10 @@ class ValidationTestCase(unittest.TestCase):
             ".6badname",  # must start with letter or digit
             "7badname.",  # must end with a letter or digit
         ):
-            bad_data = dict(s3instance=bad_s3instance)
+            bad_data = dict(
+                s3instance=bad_s3instance,
+                image_service_url="http://comcam-mcm.ls.lsst.org",
+            )
             with self.subTest(bad_data=bad_data):
                 with pytest.raises(jsonschema.exceptions.ValidationError):
                     self.validator.validate(bad_data)
