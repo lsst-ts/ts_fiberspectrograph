@@ -40,13 +40,13 @@ properties:
   image_service_url:
     description: The Image service host.
     type: string
-  telescope:
-    description: Telescope where the fiber spectrograph is being operated
+  location:
+    description: Physical placement of the fiebr spectrograph (e.g. AuxTel Calibration Cabinet or Laser Room).
     type: string
 required:
   - s3instance
   - image_service_url
-  - telescope
+  - location
 additionalProperties: false
 """
 )

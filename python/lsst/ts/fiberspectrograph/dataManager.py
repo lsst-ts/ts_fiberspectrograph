@@ -106,22 +106,27 @@ class DataManager:
         # TODO: it would be good to include the dataclass docstrings
         # as comments on each of these, but pydoc can't see them.
         hdr["FORMAT_V"] = FORMAT_VERSION
-        hdr["OBSERVAT"] = "Vera C. Rubin Observatory"
-        hdr["INSTRUME"] = (self.instrument, 'Type of Instrument.')
-        hdr["SERIAL"] = (self.serial, 'Serial Number of Spectrograph.')
-        hdr["ORIGIN"] = (self.origin, 'Name of the program that produced this data.')
+        hdr["ORIGIN"] = "Vera C. Rubin Observatory"
+        hdr["INSTRUME"] = (self.instrument, "Type of Instrument.")
+        hdr["SERIAL"] = (self.serial, "Serial Number of Spectrograph.")
+        hdr["CSCNAME"] = (self.origin, "Name of the CSC that produced this data.")
         hdr["LOCATN"] = (None, "Location of Instrument.")
         hdr["DETSIZE"] = data.n_pixels
         hdr["DATE-BEG"] = astropy.time.Time(data.date_begin).tai.fits
         hdr["DATE-END"] = astropy.time.Time(data.date_end).tai.fits
-        hdr["DAYOBS"] = astropy.time.Time(data.date_begin).tai.strftime('%Y%m%d')
-        hdr["CONTRLLR"] = "C" # Don't really know what this should be
-        hdr["EXPTIME"] = (data.duration, 'Duration of scan.')
+        hdr["DAYOBS"] = int(astropy.time.Time(data.date_begin).tai.strftime("%Y%m%d"))
+        hdr["EXPTIME"] = (data.duration, "Duration of scan.")
         hdr["TIMESYS"] = "TAI"
-        hdr["IMGTYPE"] = 'spectrum' # Until something upstream can set this more descriptively
+        hdr["IMGTYPE"] = "spectrum"  # Temporary, tickets/DM-38311 for update
         hdr["SOURCE"] = data.source
-        hdr["TEMP_SET"] = (data.temperature_setpoint.to_value(u.deg_C), 'Temperature set point [C].')
-        hdr["CCDTEMP"] = (data.temperature.to_value(u.deg_C), 'Measured Temperature [C].')
+        hdr["TEMP_SET"] = (
+            data.temperature_setpoint.to_value(u.deg_C),
+            "[degC] Temperature set point.",
+        )
+        hdr["CCDTEMP"] = (
+            data.temperature.to_value(u.deg_C),
+            "[degC] Measured Temperature.",
+        )
 
         # WCS headers - Use -TAB WCS definition
         wcs_cards = [
