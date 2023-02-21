@@ -23,14 +23,12 @@ import asyncio
 import itertools
 import pathlib
 import unittest
-import urllib.parse
 import unittest.mock
+import urllib.parse
 
 import astropy.io.fits
 import pytest
-
-from lsst.ts import salobj
-from lsst.ts import fiberspectrograph
+from lsst.ts import fiberspectrograph, salobj
 from lsst.ts.idl.enums.FiberSpectrograph import ExposureState
 
 STD_TIMEOUT = 5  # standard command timeout (sec)
