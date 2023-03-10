@@ -37,6 +37,7 @@ class ValidationTestCase(unittest.TestCase):
         config = dict(
             s3instance="a.valid.value",
             image_service_url="http://comcam-mcm.tu.lsst.org",
+            location="test",
         )
         self.validator.validate(config)
 

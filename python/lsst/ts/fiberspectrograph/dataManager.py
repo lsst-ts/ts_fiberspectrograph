@@ -78,9 +78,10 @@ class DataManager:
     wcs_column_name = "wavelength"
     """Name of the table column containing the wavelength information."""
 
-    def __init__(self, instrument, origin):
+    def __init__(self, instrument, origin, serial):
         self.instrument = instrument
         self.origin = origin
+        self.serial = serial
 
     def make_hdulist(self, data):
         """Generate a FITS hdulist built from SpectrographData.
@@ -105,19 +106,27 @@ class DataManager:
         # TODO: it would be good to include the dataclass docstrings
         # as comments on each of these, but pydoc can't see them.
         hdr["FORMAT_V"] = FORMAT_VERSION
-        hdr["OBSERVAT"] = "Vera C. Rubin Observatory"
-        hdr["INSTRUME"] = self.instrument
-        hdr["ORIGIN"] = self.origin
-        hdr["LOCATN"] = (None, "Location of Instrument")
+        hdr["ORIGIN"] = "Vera C. Rubin Observatory"
+        hdr["INSTRUME"] = (self.instrument, "Type of Instrument.")
+        hdr["SERIAL"] = (self.serial, "Serial Number of Spectrograph.")
+        hdr["CSCNAME"] = (self.origin, "Name of the CSC that produced this data.")
+        hdr["LOCATN"] = (None, "Location of Instrument.")
         hdr["DETSIZE"] = data.n_pixels
         hdr["DATE-BEG"] = astropy.time.Time(data.date_begin).tai.fits
         hdr["DATE-END"] = astropy.time.Time(data.date_end).tai.fits
-        hdr["EXPTIME"] = data.duration
+        hdr["DAYOBS"] = int(astropy.time.Time(data.date_begin).tai.strftime("%Y%m%d"))
+        hdr["EXPTIME"] = (data.duration, "Duration of scan.")
         hdr["TIMESYS"] = "TAI"
-        hdr["IMGTYPE"] = data.type
+        hdr["IMGTYPE"] = "spectrum"  # Temporary, tickets/DM-38311 for update
         hdr["SOURCE"] = data.source
-        hdr["TEMP_SET"] = data.temperature_setpoint.to_value(u.deg_C)
-        hdr["CCDTEMP"] = data.temperature.to_value(u.deg_C)
+        hdr["TEMP_SET"] = (
+            data.temperature_setpoint.to_value(u.deg_C),
+            "[degC] Temperature set point.",
+        )
+        hdr["CCDTEMP"] = (
+            data.temperature.to_value(u.deg_C),
+            "[degC] Measured Temperature.",
+        )
 
         # WCS headers - Use -TAB WCS definition
         wcs_cards = [
