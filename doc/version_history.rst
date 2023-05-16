@@ -6,6 +6,18 @@
 Version History
 ###############
 
+v0.10.0
+------
+
+* Update `CONFIG_SCHEMA` to version v4: add a location field. 
+
+Requires:
+
+* ts_salobj 7
+* ts_idl 1
+* FiberSpectrograph IDL files built with ts_xml 11
+
+
 v0.9.0
 ------
 
