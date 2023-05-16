@@ -206,9 +206,8 @@ class TestFiberSpectrographCsc(
             hdulist = astropy.io.fits.open(fileobj)
 
             assert len(hdulist) == 2
-            assert hdulist[0].header["ORIGIN"] == "FiberSpectrographCsc"
+            assert hdulist[0].header["CSCNAME"] == "FiberSpectrographCsc"
             assert hdulist[0].header["INSTRUME"] == "FiberSpectrograph.Red"
-
             # Check that out of range durations do not put us in FAULT,
             # and do not change the exposure state.
             duration = 1e-9  # seconds
@@ -279,7 +278,7 @@ class TestFiberSpectrographCsc(
             # Minimally check the data file
             hdulist = astropy.io.fits.open(filepath)
             assert len(hdulist) == 2
-            assert hdulist[0].header["ORIGIN"] == "FiberSpectrographCsc"
+            assert hdulist[0].header["CSCNAME"] == "FiberSpectrographCsc"
             assert hdulist[0].header["INSTRUME"] == "FiberSpectrograph.Red"
 
             # Check that out of range durations do not put us in FAULT,

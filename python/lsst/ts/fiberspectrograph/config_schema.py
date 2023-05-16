@@ -28,7 +28,7 @@ CONFIG_SCHEMA = yaml.safe_load(
 $schema: http://json-schema.org/draft-07/schema#
 $id: https://github.com/lsst-ts/ts_FiberSpectrograph/blob/master/python/lsst/ts/FiberSpectrograph/schema_config.py  # noqa
 # title must end with one or more spaces followed by the schema version, which must begin with "v"
-title: FiberSpectrograph v3
+title: FiberSpectrograph v4
 description: Schema for FiberSpectrograph configuration files
 type: object
 properties:
@@ -40,9 +40,13 @@ properties:
   image_service_url:
     description: The Image service host.
     type: string
+  location:
+    description: Physical placement of the fiebr spectrograph (e.g. AuxTel Calibration Cabinet or Laser Room).
+    type: string
 required:
   - s3instance
   - image_service_url
+  - location
 additionalProperties: false
 """
 )

@@ -34,6 +34,7 @@ class TestDataManager(unittest.TestCase):
     def setUp(self):
         self.instrument = "TestBlue"
         self.origin = "Not a real CSC"
+        self.serial = "123"
         self.n_pixels = 1234
         self.wavelength = np.linspace(300, 1000, self.n_pixels, dtype=np.float64) * u.nm
         self.spectrum = np.random.random(self.n_pixels)
@@ -63,13 +64,16 @@ class TestDataManager(unittest.TestCase):
         self.expected_header = {
             "FORMAT_V": 1,
             "INSTRUME": self.instrument,
-            "ORIGIN": self.origin,
+            "SERIAL": self.serial,
+            "CSCNAME": self.origin,
             "DETSIZE": self.n_pixels,
             "DATE-BEG": "1999-01-01T00:00:00.000",
             "DATE-END": "1999-01-01T00:00:02.500",
+            "ORIGIN": "Vera C. Rubin Observatory",
+            "DAYOBS": int("19990101"),
             "EXPTIME": self.duration,
             "TIMESYS": "TAI",
-            "IMGTYPE": self.type,
+            "IMGTYPE": "spectrum",
             "SOURCE": self.source,
             "TEMP_SET": self.temperature_setpoint.to_value(u.deg_C),
             "CCDTEMP": self.temperature.to_value(
@@ -101,13 +105,17 @@ class TestDataManager(unittest.TestCase):
             assert wavelengths.unit.name == expected_unit
 
     def test_make_fits_header(self):
-        manager = DataManager(instrument=self.instrument, origin=self.origin)
+        manager = DataManager(
+            instrument=self.instrument, origin=self.origin, serial=self.serial
+        )
 
         header = manager.make_fits_header(self.data)
         self.check_header(header)
 
     def test_make_primary_hdu(self):
-        manager = DataManager(instrument=self.instrument, origin=self.origin)
+        manager = DataManager(
+            instrument=self.instrument, origin=self.origin, serial=self.serial
+        )
 
         hdu = manager.make_primary_hdu(self.data)
         np.testing.assert_array_equal(hdu.data, self.spectrum)
@@ -116,7 +124,9 @@ class TestDataManager(unittest.TestCase):
         assert isinstance(hdu, astropy.io.fits.PrimaryHDU)
 
     def test_make_wavelength_hdu(self):
-        manager = DataManager(instrument=self.instrument, origin=self.origin)
+        manager = DataManager(
+            instrument=self.instrument, origin=self.origin, serial=self.serial
+        )
         hdu = manager.make_wavelength_hdu(self.data)
         # Need first wavelength from first row
         wavelengths = QTable.read(hdu)["wavelength"][0]
@@ -125,7 +135,9 @@ class TestDataManager(unittest.TestCase):
         assert not isinstance(hdu, astropy.io.fits.PrimaryHDU)
 
     def test_make_hdulist(self):
-        manager = DataManager(instrument=self.instrument, origin=self.origin)
+        manager = DataManager(
+            instrument=self.instrument, origin=self.origin, serial=self.serial
+        )
         hdulist = manager.make_hdulist(self.data)
         self.check_header(hdulist[0].header)
         np.testing.assert_array_equal(hdulist[0].data, self.spectrum)
