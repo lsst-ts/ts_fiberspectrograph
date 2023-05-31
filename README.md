@@ -38,13 +38,3 @@ The proper output should be:
     crw-rw-r--. 1 saluser saluser 189, 3 Nov 15 03:01 /dev/bus/usb/001/004
 
 Note that if the new rule has not been applied, running the udevadm utest command using sudo may as it appears to modify the owner and group help.
-
-
-
-# Automatic Formatting
-
-This code uses ``pre-commit`` to maintain ``black`` formatting and ``flake8`` compliance.
-To enable this, run the following commands once (the first removes the previous pre-commit hook)::
-
-    git config --unset-all core.hooksPath
-    pre-commit install
