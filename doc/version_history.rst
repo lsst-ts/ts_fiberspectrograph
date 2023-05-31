@@ -6,8 +6,21 @@
 Version History
 ###############
 
+v0.10.1
+-------
+
+* Use ts_pre_commit_config.
+* Jenkinsfile: use the shared library.
+* Remove scons support.
+
+Requires:
+
+* ts_salobj 7
+* ts_idl 1
+* FiberSpectrograph IDL files built with ts_xml 11
+
 v0.10.0
-------
+-------
 
 * Update `CONFIG_SCHEMA` to version v4: add a location field. 
 
