@@ -42,7 +42,7 @@ from lsst.ts.fiberspectrograph import (
     AvsReturnError,
     AvsSimulator,
 )
-from lsst.ts.fiberspectrograph.avsFiberSpectrograph import MAX_DURATION, MIN_DURATION
+from lsst.ts.fiberspectrograph.avs_fiber_spectrograph import MAX_DURATION, MIN_DURATION
 
 
 class TestAvsFiberSpectrograph(unittest.IsolatedAsyncioTestCase):

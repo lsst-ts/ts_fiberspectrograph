@@ -24,9 +24,9 @@ try:
 except ImportError:
     __version__ = "?"
 
-from .avsFiberSpectrograph import *
-from .avsSimulator import *
+from .avs_fiber_spectrograph import *
+from .avs_simulator import *
 from .config_schema import *
 from .constants import *
 from .csc import *
-from .dataManager import *
+from .data_manager import *
