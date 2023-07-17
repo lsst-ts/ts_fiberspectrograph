@@ -6,6 +6,10 @@
 Version History
 ###############
 
+v0.11.0
+-------
+* Make module names pep8 compliant.
+
 v0.10.1
 -------
 

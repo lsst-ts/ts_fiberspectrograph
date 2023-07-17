@@ -29,9 +29,9 @@ import astropy.units as u
 from lsst.ts import salobj, utils
 from lsst.ts.idl.enums.FiberSpectrograph import ExposureState
 
-from . import __version__, constants, dataManager
-from .avsFiberSpectrograph import AvsFiberSpectrograph
-from .avsSimulator import AvsSimulator
+from . import __version__, constants, data_manager
+from .avs_fiber_spectrograph import AvsFiberSpectrograph
+from .avs_simulator import AvsSimulator
 from .config_schema import CONFIG_SCHEMA
 
 
@@ -99,7 +99,7 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
         self.s3bucket_name = None  # Set by `configure`.
         self.s3bucket = None  # Set by `handle_summary_state`.
 
-        self.data_manager = dataManager.DataManager(
+        self.data_manager = data_manager.DataManager(
             instrument=f"FiberSpectrograph.{self.band_name}",
             origin=type(self).__name__,
             serial=self.serial_number,
@@ -223,7 +223,7 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
             temperature = self.tel_temperature.data.temperature * u.deg_C
             setpoint = self.tel_temperature.data.setpoint * u.deg_C
             n_pixels = self.evt_deviceInfo.data.npixels
-            spec_data = dataManager.SpectrographData(
+            spec_data = data_manager.SpectrographData(
                 wavelength=wavelength,
                 spectrum=spectrum,
                 duration=data.duration,
