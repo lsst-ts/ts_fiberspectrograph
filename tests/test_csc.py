@@ -171,7 +171,7 @@ class TestFiberSpectrographCsc(
             await self.assert_next_summary_state(salobj.State.ENABLED)
             assert self.csc.s3bucket_name == self.csc.s3bucket.name
             self.csc.image_service_client.get_next_obs_id = unittest.mock.AsyncMock(
-                return_value=([1], "FS1_O_20221130_000001")
+                return_value=([1], ["FS1_O_20221130_000001"])
             )
 
             duration = 2  # seconds

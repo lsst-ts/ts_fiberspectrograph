@@ -6,6 +6,10 @@
 Version History
 ###############
 
+v0.11.1
+-------
+* Fix fits header information based on list object received from image name service.
+
 v0.11.0
 -------
 * Make module names pep8 compliant.
