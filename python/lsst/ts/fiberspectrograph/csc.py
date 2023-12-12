@@ -262,11 +262,10 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
         image_sequence_array, data = await self.image_service_client.get_next_obs_id(
             num_images=1
         )
-        self.log.debug(f"{data}")
-        hdulist[0].header["OBSID"] = data
+        hdulist[0].header["OBSID"] = data[0]
         hdulist[0].header["TELCODE"] = self.config.location
-        hdulist[0].header["SEQNUM"] = int(data.split("_")[-1])
-        hdulist[0].header["CONTRLLR"] = data.split("_")[0]
+        hdulist[0].header["SEQNUM"] = int(image_sequence_array[0])
+        hdulist[0].header["CONTRLLR"] = data[0].split("_")[0]
         fileobj = io.BytesIO()
         hdulist.writeto(fileobj)
         fileobj.seek(0)
