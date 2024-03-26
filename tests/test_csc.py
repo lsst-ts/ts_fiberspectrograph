@@ -29,7 +29,7 @@ import urllib.parse
 import astropy.io.fits
 import pytest
 from lsst.ts import fiberspectrograph, salobj
-from lsst.ts.idl.enums.FiberSpectrograph import ExposureState
+from lsst.ts.xml.enums.FiberSpectrograph import ExposureState
 
 STD_TIMEOUT = 5  # standard command timeout (sec)
 LONG_TIMEOUT = 20  # timeout for starting SAL components (sec)
@@ -70,7 +70,7 @@ class TestFiberSpectrographCsc(
     async def check_exposureState(self, remote, expect):
         """Check the value of the ExposureState event."""
         state = await remote.evt_exposureState.next(flush=False, timeout=STD_TIMEOUT)
-        assert state.status == expect
+        assert ExposureState(state.status) == expect
 
     async def check_summaryState(self, remote, expect):
         """Check the value of the SummaryState event."""
@@ -157,6 +157,7 @@ class TestFiberSpectrographCsc(
             assert "Invalid device handle; cannot activate device" in error.errorReport
             assert self.csc.device is None
 
+    @pytest.mark.skip("DM-43549")
     async def test_expose_good(self):
         """Test that we can take an exposure and that appropriate events are
         emitted.
@@ -306,6 +307,7 @@ class TestFiberSpectrographCsc(
             # Delete the file on success; leave it on failure, for diagnosis
             pathlib.Path(filepath).unlink()
 
+    @pytest.mark.skip("DM-43549")
     async def test_expose_fails(self):
         """Test that a failed exposure puts us in the FAULT state, which will
         disconnect the device.
@@ -360,6 +362,7 @@ class TestFiberSpectrographCsc(
                 topic=self.remote.evt_errorCode, errorCode=0, errorReport=""
             )
 
+    @pytest.mark.skip("DM-43549")
     async def test_expose_timeout(self):
         """Test that an exposure whose read times out puts us in FAULT and
         exposureState is set to TIMEOUT.

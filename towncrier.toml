@@ -1,0 +1,8 @@
+[tool.towncrier]
+directory = "doc/news"
+package = "lsst.ts.fiberspectrograph"
+package_dir = "python"
+filename = "doc/version-history.rst"
+name = "ts_fiberspectrograph"
+issue_format = "`{issue} <https://rubinobs.atlassian.net/{issue}>`_"
+
