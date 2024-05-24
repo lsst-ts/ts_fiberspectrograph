@@ -157,7 +157,6 @@ class TestFiberSpectrographCsc(
             assert "Invalid device handle; cannot activate device" in error.errorReport
             assert self.csc.device is None
 
-    @pytest.mark.skip("DM-43549")
     async def test_expose_good(self):
         """Test that we can take an exposure and that appropriate events are
         emitted.
@@ -307,7 +306,6 @@ class TestFiberSpectrographCsc(
             # Delete the file on success; leave it on failure, for diagnosis
             pathlib.Path(filepath).unlink()
 
-    @pytest.mark.skip("DM-43549")
     async def test_expose_fails(self):
         """Test that a failed exposure puts us in the FAULT state, which will
         disconnect the device.
@@ -362,7 +360,6 @@ class TestFiberSpectrographCsc(
                 topic=self.remote.evt_errorCode, errorCode=0, errorReport=""
             )
 
-    @pytest.mark.skip("DM-43549")
     async def test_expose_timeout(self):
         """Test that an exposure whose read times out puts us in FAULT and
         exposureState is set to TIMEOUT.
