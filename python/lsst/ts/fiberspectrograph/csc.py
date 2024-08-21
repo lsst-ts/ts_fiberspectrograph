@@ -249,9 +249,9 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
             await self.fault(code=20, report=msg)
             raise salobj.ExpectedError(msg)
 
-        await self.save_data(spec_data)
+        await self.save_data(spec_data, group_id=getattr(data, "groupId", None))
 
-    async def save_data(self, spec_data):
+    async def save_data(self, spec_data, group_id=None):
         """Save a spectrograph FITS file to the LFA, if possible.
 
         If the S3 upload fails then try to save the file locally to /tmp.
@@ -266,6 +266,7 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
         hdulist[0].header["TELCODE"] = self.config.location
         hdulist[0].header["SEQNUM"] = int(image_sequence_array[0])
         hdulist[0].header["CONTRLLR"] = data[0].split("_")[0]
+        hdulist[0].header["GROUPID"] = group_id
         fileobj = io.BytesIO()
         hdulist.writeto(fileobj)
         fileobj.seek(0)

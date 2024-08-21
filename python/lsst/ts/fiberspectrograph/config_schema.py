@@ -41,7 +41,7 @@ properties:
     description: The Image service host.
     type: string
   location:
-    description: Physical placement of the fiebr spectrograph (e.g. AuxTel Calibration Cabinet or Laser Room).
+    description: Physical placement of the fiber spectrograph (e.g. AuxTel Calibration Cabinet or Laser Room).
     type: string
 required:
   - s3instance
