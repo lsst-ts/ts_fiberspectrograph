@@ -33,8 +33,8 @@ class SalIndex(enum.IntEnum):
     """
 
     UNKNOWN = -1
-    BLUE = 101
-    RED = 102
+    BLUE = 102
+    RED = 101
     BROAD = 3
 
 
