@@ -27,7 +27,7 @@ import pathlib
 
 import astropy.units as u
 from lsst.ts import salobj, utils
-from lsst.ts.idl.enums.FiberSpectrograph import ExposureState
+from lsst.ts.xml.enums.FiberSpectrograph import ExposureState
 
 from . import __version__, constants, data_manager
 from .avs_fiber_spectrograph import AvsFiberSpectrograph
