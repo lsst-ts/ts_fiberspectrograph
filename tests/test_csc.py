@@ -69,19 +69,19 @@ class TestFiberSpectrographCsc(
 
     async def check_exposureState(self, remote, expect):
         """Check the value of the ExposureState event."""
-        state = await remote.evt_exposureState.next(flush=False, timeout=STD_TIMEOUT)
-        assert ExposureState(state.status) == expect
+        await self.assert_next_sample(
+            topic=remote.evt_exposureState, status=ExposureState(expect)
+        )
 
     async def check_summaryState(self, remote, expect):
         """Check the value of the SummaryState event."""
-        state = await remote.evt_summaryState.next(flush=False, timeout=STD_TIMEOUT)
-        assert state.summaryState == expect
+        await self.assert_next_summary_state(state=expect)
 
     async def check_temperature(self, remote, temperature, setpoint):
         """Check the value of the temperature telemetry."""
-        state = await remote.tel_temperature.next(flush=False, timeout=STD_TIMEOUT)
-        assert state.temperature == pytest.approx(temperature)
-        assert state.setpoint == pytest.approx(setpoint)
+        topic = await self.assert_next_sample(topic=remote.tel_temperature)
+        assert topic.temperature == pytest.approx(temperature)
+        assert topic.setpoint == pytest.approx(setpoint)
 
     async def test_standard_state_transitions(self):
         """Test that state changes connect/disconnect the spectrograph
@@ -186,10 +186,12 @@ class TestFiberSpectrographCsc(
             await self.check_exposureState(self.remote, ExposureState.DONE)
 
             # Check the large file event.
-            data = await self.remote.evt_largeFileObjectAvailable.next(
-                flush=False, timeout=STD_TIMEOUT
+            data = await self.assert_next_sample(
+                topic=self.remote.evt_largeFileObjectAvailable
             )
             parsed_url = urllib.parse.urlparse(data.url)
+            # TODO: Figure out what's going on here later.
+            self.csc.log.info(f"{parsed_url=}")
             assert parsed_url.scheme == "https"
             assert (
                 parsed_url.netloc
@@ -222,14 +224,10 @@ class TestFiberSpectrographCsc(
                 )
             # No ExposureState message should have been emitted.
             with pytest.raises(asyncio.TimeoutError):
-                await self.remote.evt_exposureState.next(
-                    flush=False, timeout=STD_TIMEOUT
-                )
+                await self.assert_next_sample(topic=self.remote.evt_exposureState)
             # We should not have left ENABLED.
             with pytest.raises(asyncio.TimeoutError):
-                await self.remote.evt_exposureState.next(
-                    flush=False, timeout=STD_TIMEOUT
-                )
+                await self.assert_next_sample(topic=self.remote.evt_exposureState)
 
     async def test_expose_failed_s3_upload(self):
         """Test that we can take an exposure and that the file is saved locally
@@ -265,8 +263,8 @@ class TestFiberSpectrographCsc(
             await self.check_exposureState(self.remote, ExposureState.DONE)
 
             # Check the large file event.
-            data = await self.remote.evt_largeFileObjectAvailable.next(
-                flush=False, timeout=STD_TIMEOUT
+            data = await self.assert_next_sample(
+                topic=self.remote.evt_largeFileObjectAvailable
             )
             parsed_url = urllib.parse.urlparse(data.url)
             filepath = urllib.parse.unquote(parsed_url.path)
