@@ -279,8 +279,7 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
             suffix=".fits",
         )
         try:
-            await self.s3bucket.upload(fileobj=fileobj, key=key)
-            url = f"{self.s3bucket.service_resource.meta.client.meta.endpoint_url}/{self.s3bucket.name}/{key}"
+            url = await self.s3bucket.upload(fileobj=fileobj, key=key)
             await self.evt_largeFileObjectAvailable.set_write(
                 url=url, generator=self.generator_name
             )
