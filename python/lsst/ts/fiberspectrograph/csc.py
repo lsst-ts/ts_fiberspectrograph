@@ -27,7 +27,7 @@ import pathlib
 
 import astropy.units as u
 from lsst.ts import salobj, utils
-from lsst.ts.idl.enums.FiberSpectrograph import ExposureState
+from lsst.ts.xml.enums.FiberSpectrograph import ExposureState
 
 from . import __version__, constants, data_manager
 from .avs_fiber_spectrograph import AvsFiberSpectrograph
@@ -279,8 +279,7 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
             suffix=".fits",
         )
         try:
-            await self.s3bucket.upload(fileobj=fileobj, key=key)
-            url = f"{self.s3bucket.service_resource.meta.client.meta.endpoint_url}/{self.s3bucket.name}/{key}"
+            url = await self.s3bucket.upload(fileobj=fileobj, key=key)
             await self.evt_largeFileObjectAvailable.set_write(
                 url=url, generator=self.generator_name
             )
