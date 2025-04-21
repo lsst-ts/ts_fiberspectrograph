@@ -40,3 +40,4 @@ requirements:
     - python {{ python }}
     - ts-xml
     - ts-salobj
+    - libusb
