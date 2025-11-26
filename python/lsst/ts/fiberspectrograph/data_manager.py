@@ -149,9 +149,7 @@ class DataManager:
     def make_primary_hdu(self, data):
         """Return the primary HDU built from SpectrographData."""
 
-        hdu = astropy.io.fits.PrimaryHDU(
-            data=data.spectrum, header=self.make_fits_header(data)
-        )
+        hdu = astropy.io.fits.PrimaryHDU(data=data.spectrum, header=self.make_fits_header(data))
         return hdu
 
     def make_wavelength_hdu(self, data):

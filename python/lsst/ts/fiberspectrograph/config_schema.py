@@ -26,7 +26,7 @@ import yaml
 CONFIG_SCHEMA = yaml.safe_load(
     """
 $schema: http://json-schema.org/draft-07/schema#
-$id: https://github.com/lsst-ts/ts_FiberSpectrograph/blob/master/python/lsst/ts/FiberSpectrograph/schema_config.py  # noqa
+$id: https://github.com/lsst-ts/ts_FiberSpectrograph/blob/main/python/lsst/ts/FiberSpectrograph/config_schema.py
 # title must end with one or more spaces followed by the schema version, which must begin with "v"
 title: FiberSpectrograph v4
 description: Schema for FiberSpectrograph configuration files

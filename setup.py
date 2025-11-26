@@ -14,7 +14,5 @@ if scm_version.startswith("8"):
     )
 else:
     setuptools.setup(
-        version=setuptools_scm.get_version(
-            write_to="python/lsst/ts/fiberspectrograph/version.py"
-        )
+        version=setuptools_scm.get_version(write_to="python/lsst/ts/fiberspectrograph/version.py")
     )
