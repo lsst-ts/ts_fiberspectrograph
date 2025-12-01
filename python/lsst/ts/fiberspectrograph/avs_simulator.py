@@ -73,9 +73,7 @@ class AvsSimulator:
         # these coefficients should result in a temperature of 5.0
         self.tec_coefficients = np.array((1, 2, 0, 0.0, 0), dtype=np.float32)
         self.tec_voltage = 2
-        self.temperature = sum(
-            coeff * self.tec_voltage**i for i, coeff in enumerate(self.tec_coefficients)
-        )
+        self.temperature = sum(coeff * self.tec_voltage**i for i, coeff in enumerate(self.tec_coefficients))
 
         def mock_getParameter(handle, a_Size, a_pRequiredSize, config):
             """Assume a_pData has the correct amount of space allocated."""
@@ -90,9 +88,7 @@ class AvsSimulator:
         self.firmware_version = "firmware123456"
         self.library_version = "library123456"
 
-        def mock_getVersionInfo(
-            handle, a_pFPGAVersion, a_pFirmwareVersion, a_pLibVersion
-        ):
+        def mock_getVersionInfo(handle, a_pFPGAVersion, a_pFirmwareVersion, a_pLibVersion):
             a_pFPGAVersion[:15] = self.fpga_version.encode("ascii")
             a_pFirmwareVersion[:14] = self.firmware_version.encode("ascii")
             a_pLibVersion[:13] = self.library_version.encode("ascii")

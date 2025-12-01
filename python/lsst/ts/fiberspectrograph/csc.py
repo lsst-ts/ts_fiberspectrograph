@@ -136,14 +136,10 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
         if self.summary_state in (salobj.State.ENABLED, salobj.State.DISABLED):
             if self.s3bucket is None:
                 domock = self.simulation_mode & constants.SimulationMode.S3Server != 0
-                self.s3bucket = salobj.AsyncS3Bucket(
-                    name=self.s3bucket_name, domock=domock, create=domock
-                )
+                self.s3bucket = salobj.AsyncS3Bucket(name=self.s3bucket_name, domock=domock, create=domock)
             if self.device is None:
                 try:
-                    self.device = AvsFiberSpectrograph(
-                        serial_number=self.serial_number, log=self.log
-                    )
+                    self.device = AvsFiberSpectrograph(serial_number=self.serial_number, log=self.log)
                 except Exception as e:
                     msg = "Failed to connect to fiber spectrograph."
                     await self.fault(code=1, report=f"{msg}: {repr(e)}")
@@ -259,9 +255,7 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
         upload succeeds.
         """
         hdulist = self.data_manager.make_hdulist(spec_data)
-        image_sequence_array, data = await self.image_service_client.get_next_obs_id(
-            num_images=1
-        )
+        image_sequence_array, data = await self.image_service_client.get_next_obs_id(num_images=1)
         hdulist[0].header["OBSID"] = data[0]
         hdulist[0].header["TELCODE"] = self.config.location
         hdulist[0].header["SEQNUM"] = int(image_sequence_array[0])
@@ -280,13 +274,9 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
         )
         try:
             url = await self.s3bucket.upload(fileobj=fileobj, key=key)
-            await self.evt_largeFileObjectAvailable.set_write(
-                url=url, generator=self.generator_name
-            )
+            await self.evt_largeFileObjectAvailable.set_write(url=url, generator=self.generator_name)
         except Exception:
-            self.log.exception(
-                f"Could not upload FITS file {key} to S3; trying to save to local disk."
-            )
+            self.log.exception(f"Could not upload FITS file {key} to S3; trying to save to local disk.")
             try:
                 filepath = pathlib.Path("/tmp") / self.s3bucket.name / key
                 dirpath = filepath.parent
@@ -299,9 +289,7 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
                     url=filepath.as_uri(), generator=self.generator_name
                 )
             except Exception:
-                self.log.exception(
-                    "Could not save the FITS file locally, either. The data is lost."
-                )
+                self.log.exception("Could not save the FITS file locally, either. The data is lost.")
                 raise
 
     async def do_cancelExposure(self, data):

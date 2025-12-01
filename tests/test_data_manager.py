@@ -41,9 +41,7 @@ class TestDataManager(unittest.TestCase):
         self.duration = 2.5
         self.time_str = "1999-01-01T00:00:00.000"
         self.date_begin = astropy.time.Time(self.time_str, scale="tai")
-        self.date_end = self.date_begin + astropy.time.TimeDelta(
-            self.duration, format="sec"
-        )
+        self.date_end = self.date_begin + astropy.time.TimeDelta(self.duration, format="sec")
         self.temperature = -273 * u.deg_C
         self.temperature_setpoint = -274 * u.deg_C
         self.type = "totally real data"
@@ -105,17 +103,13 @@ class TestDataManager(unittest.TestCase):
             assert wavelengths.unit.name == expected_unit
 
     def test_make_fits_header(self):
-        manager = DataManager(
-            instrument=self.instrument, origin=self.origin, serial=self.serial
-        )
+        manager = DataManager(instrument=self.instrument, origin=self.origin, serial=self.serial)
 
         header = manager.make_fits_header(self.data)
         self.check_header(header)
 
     def test_make_primary_hdu(self):
-        manager = DataManager(
-            instrument=self.instrument, origin=self.origin, serial=self.serial
-        )
+        manager = DataManager(instrument=self.instrument, origin=self.origin, serial=self.serial)
 
         hdu = manager.make_primary_hdu(self.data)
         np.testing.assert_array_equal(hdu.data, self.spectrum)
@@ -124,9 +118,7 @@ class TestDataManager(unittest.TestCase):
         assert isinstance(hdu, astropy.io.fits.PrimaryHDU)
 
     def test_make_wavelength_hdu(self):
-        manager = DataManager(
-            instrument=self.instrument, origin=self.origin, serial=self.serial
-        )
+        manager = DataManager(instrument=self.instrument, origin=self.origin, serial=self.serial)
         hdu = manager.make_wavelength_hdu(self.data)
         # Need first wavelength from first row
         wavelengths = QTable.read(hdu)["wavelength"][0]
@@ -135,9 +127,7 @@ class TestDataManager(unittest.TestCase):
         assert not isinstance(hdu, astropy.io.fits.PrimaryHDU)
 
     def test_make_hdulist(self):
-        manager = DataManager(
-            instrument=self.instrument, origin=self.origin, serial=self.serial
-        )
+        manager = DataManager(instrument=self.instrument, origin=self.origin, serial=self.serial)
         hdulist = manager.make_hdulist(self.data)
         self.check_header(hdulist[0].header)
         np.testing.assert_array_equal(hdulist[0].data, self.spectrum)
