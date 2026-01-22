@@ -29,7 +29,7 @@ import urllib.parse
 import astropy.io.fits
 import pytest
 from lsst.ts import fiberspectrograph, salobj
-from lsst.ts.idl.enums.FiberSpectrograph import ExposureState
+from lsst.ts.xml.enums.FiberSpectrograph import ExposureState
 
 STD_TIMEOUT = 5  # standard command timeout (sec)
 LONG_TIMEOUT = 20  # timeout for starting SAL components (sec)
@@ -37,9 +37,7 @@ LONG_TIMEOUT = 20  # timeout for starting SAL components (sec)
 TEST_CONFIG_DIR = pathlib.Path(__file__).parent / "data" / "config"
 
 
-class TestFiberSpectrographCsc(
-    salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase
-):
+class TestFiberSpectrographCsc(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
     """Test the functionality of the FiberSpectrographCsc, using a mocked
     spectrograph connection.
 
@@ -69,36 +67,30 @@ class TestFiberSpectrographCsc(
 
     async def check_exposureState(self, remote, expect):
         """Check the value of the ExposureState event."""
-        state = await remote.evt_exposureState.next(flush=False, timeout=STD_TIMEOUT)
-        assert state.status == expect
+        await self.assert_next_sample(topic=remote.evt_exposureState, status=ExposureState(expect))
 
     async def check_summaryState(self, remote, expect):
         """Check the value of the SummaryState event."""
-        state = await remote.evt_summaryState.next(flush=False, timeout=STD_TIMEOUT)
-        assert state.summaryState == expect
+        await self.assert_next_summary_state(state=expect)
 
     async def check_temperature(self, remote, temperature, setpoint):
         """Check the value of the temperature telemetry."""
-        state = await remote.tel_temperature.next(flush=False, timeout=STD_TIMEOUT)
-        assert state.temperature == pytest.approx(temperature)
-        assert state.setpoint == pytest.approx(setpoint)
+        topic = await self.assert_next_sample(topic=remote.tel_temperature)
+        assert topic.temperature == pytest.approx(temperature)
+        assert topic.setpoint == pytest.approx(setpoint)
 
     async def test_standard_state_transitions(self):
         """Test that state changes connect/disconnect the spectrograph
         correctly.
         """
-        async with self.make_csc(
-            initial_state=salobj.State.STANDBY, config_dir=TEST_CONFIG_DIR
-        ):
+        async with self.make_csc(initial_state=salobj.State.STANDBY, config_dir=TEST_CONFIG_DIR):
             await self.assert_next_sample(
                 topic=self.remote.evt_softwareVersions,
                 cscVersion=fiberspectrograph.__version__,
                 subsystemVersions="",
             )
 
-            await self.check_standard_state_transitions(
-                enabled_commands=("cancelExposure", "expose")
-            )
+            await self.check_standard_state_transitions(enabled_commands=("cancelExposure", "expose"))
 
     async def test_connect_by_index(self):
         """Test that changing the index number changes the serial number
@@ -135,9 +127,7 @@ class TestFiberSpectrographCsc(
         self.patch.return_value.AVS_Activate.return_value = (
             fiberspectrograph.AvsReturnCode.invalidHandle.value
         )
-        async with self.make_csc(
-            initial_state=salobj.State.STANDBY, config_dir=TEST_CONFIG_DIR
-        ):
+        async with self.make_csc(initial_state=salobj.State.STANDBY, config_dir=TEST_CONFIG_DIR):
             # Check that we are properly in STANDBY at the start
             await self.assert_next_summary_state(salobj.State.STANDBY)
             error = await self.assert_next_sample(
@@ -145,14 +135,10 @@ class TestFiberSpectrographCsc(
             )
 
             msg = "Failed to connect"
-            with salobj.assertRaisesAckError(
-                ack=salobj.SalRetCode.CMD_FAILED, result_contains=msg
-            ):
+            with salobj.assertRaisesAckError(ack=salobj.SalRetCode.CMD_FAILED, result_contains=msg):
                 await self.remote.cmd_start.start(timeout=STD_TIMEOUT)
             await self.assert_next_summary_state(salobj.State.FAULT)
-            error = await self.remote.evt_errorCode.next(
-                flush=False, timeout=STD_TIMEOUT
-            )
+            error = await self.remote.evt_errorCode.next(flush=False, timeout=STD_TIMEOUT)
             assert "RuntimeError" in error.errorReport
             assert "Invalid device handle; cannot activate device" in error.errorReport
             assert self.csc.device is None
@@ -176,9 +162,7 @@ class TestFiberSpectrographCsc(
 
             duration = 2  # seconds
             task = asyncio.create_task(
-                self.remote.cmd_expose.set_start(
-                    timeout=STD_TIMEOUT + duration, duration=duration
-                )
+                self.remote.cmd_expose.set_start(timeout=STD_TIMEOUT + duration, duration=duration)
             )
             await self.check_exposureState(self.remote, ExposureState.INTEGRATING)
             # Wait for the exposure to finish.
@@ -186,10 +170,10 @@ class TestFiberSpectrographCsc(
             await self.check_exposureState(self.remote, ExposureState.DONE)
 
             # Check the large file event.
-            data = await self.remote.evt_largeFileObjectAvailable.next(
-                flush=False, timeout=STD_TIMEOUT
-            )
+            data = await self.assert_next_sample(topic=self.remote.evt_largeFileObjectAvailable)
             parsed_url = urllib.parse.urlparse(data.url)
+            # TODO: Figure out what's going on here later.
+            self.csc.log.info(f"{parsed_url=}")
             assert parsed_url.scheme == "https"
             assert (
                 parsed_url.netloc
@@ -199,9 +183,7 @@ class TestFiberSpectrographCsc(
             )
 
             # Minimally check the data written to s3
-            key = parsed_url.path[1:].split("/", maxsplit=1)[
-                1
-            ]  # Strip leading "rubinobs-lfa-test/"
+            key = parsed_url.path[1:].split("/", maxsplit=1)[1]  # Strip leading "rubinobs-lfa-test/"
             fileobj = await self.csc.s3bucket.download(key)
             hdulist = astropy.io.fits.open(fileobj)
 
@@ -216,20 +198,14 @@ class TestFiberSpectrographCsc(
                 result_contains="Exposure duration",
             ):
                 await asyncio.create_task(
-                    self.remote.cmd_expose.set_start(
-                        timeout=STD_TIMEOUT, duration=duration
-                    )
+                    self.remote.cmd_expose.set_start(timeout=STD_TIMEOUT, duration=duration)
                 )
             # No ExposureState message should have been emitted.
             with pytest.raises(asyncio.TimeoutError):
-                await self.remote.evt_exposureState.next(
-                    flush=False, timeout=STD_TIMEOUT
-                )
+                await self.assert_next_sample(topic=self.remote.evt_exposureState)
             # We should not have left ENABLED.
             with pytest.raises(asyncio.TimeoutError):
-                await self.remote.evt_exposureState.next(
-                    flush=False, timeout=STD_TIMEOUT
-                )
+                await self.assert_next_sample(topic=self.remote.evt_exposureState)
 
     async def test_expose_failed_s3_upload(self):
         """Test that we can take an exposure and that the file is saved locally
@@ -255,9 +231,7 @@ class TestFiberSpectrographCsc(
 
             duration = 2  # seconds
             task = asyncio.create_task(
-                self.remote.cmd_expose.set_start(
-                    timeout=STD_TIMEOUT + duration, duration=duration
-                )
+                self.remote.cmd_expose.set_start(timeout=STD_TIMEOUT + duration, duration=duration)
             )
             await self.check_exposureState(self.remote, ExposureState.INTEGRATING)
             # Wait for the exposure to finish.
@@ -265,9 +239,7 @@ class TestFiberSpectrographCsc(
             await self.check_exposureState(self.remote, ExposureState.DONE)
 
             # Check the large file event.
-            data = await self.remote.evt_largeFileObjectAvailable.next(
-                flush=False, timeout=STD_TIMEOUT
-            )
+            data = await self.assert_next_sample(topic=self.remote.evt_largeFileObjectAvailable)
             parsed_url = urllib.parse.urlparse(data.url)
             filepath = urllib.parse.unquote(parsed_url.path)
             assert parsed_url.scheme == "file"
@@ -289,20 +261,14 @@ class TestFiberSpectrographCsc(
                 result_contains="Exposure duration",
             ):
                 await asyncio.create_task(
-                    self.remote.cmd_expose.set_start(
-                        timeout=STD_TIMEOUT, duration=duration
-                    )
+                    self.remote.cmd_expose.set_start(timeout=STD_TIMEOUT, duration=duration)
                 )
             # No ExposureState message should have been emitted.
             with pytest.raises(asyncio.TimeoutError):
-                await self.remote.evt_exposureState.next(
-                    flush=False, timeout=STD_TIMEOUT
-                )
+                await self.remote.evt_exposureState.next(flush=False, timeout=STD_TIMEOUT)
             # We should not have left ENABLED.
             with pytest.raises(asyncio.TimeoutError):
-                await self.remote.evt_exposureState.next(
-                    flush=False, timeout=STD_TIMEOUT
-                )
+                await self.remote.evt_exposureState.next(flush=False, timeout=STD_TIMEOUT)
             # Delete the file on success; leave it on failure, for diagnosis
             pathlib.Path(filepath).unlink()
 
@@ -317,9 +283,7 @@ class TestFiberSpectrographCsc(
         self.patch.return_value.AVS_GetScopeData.return_value = (
             fiberspectrograph.AvsReturnCode.ERR_INVALID_MEAS_DATA.value
         )
-        async with self.make_csc(
-            initial_state=salobj.State.ENABLED, config_dir=TEST_CONFIG_DIR
-        ):
+        async with self.make_csc(initial_state=salobj.State.ENABLED, config_dir=TEST_CONFIG_DIR):
             # Check that we are properly in ENABLED at the start.
             await self.assert_next_summary_state(salobj.State.ENABLED)
             error = await self.assert_next_sample(
@@ -327,20 +291,14 @@ class TestFiberSpectrographCsc(
             )
 
             msg = "Failed to take exposure"
-            with salobj.assertRaisesAckError(
-                ack=salobj.SalRetCode.CMD_FAILED, result_contains=msg
-            ):
-                await self.remote.cmd_expose.set_start(
-                    timeout=STD_TIMEOUT, duration=0.5
-                )
+            with salobj.assertRaisesAckError(ack=salobj.SalRetCode.CMD_FAILED, result_contains=msg):
+                await self.remote.cmd_expose.set_start(timeout=STD_TIMEOUT, duration=0.5)
             # The exposure state should be Integrating during the exposure.
             await self.check_exposureState(self.remote, ExposureState.INTEGRATING)
             # The exposure state should be Failed after the exposure has
             # completed, because GetScopeData returned an error code.
             await self.assert_next_summary_state(salobj.State.FAULT)
-            error = await self.remote.evt_errorCode.next(
-                flush=False, timeout=STD_TIMEOUT
-            )
+            error = await self.remote.evt_errorCode.next(flush=False, timeout=STD_TIMEOUT)
             errorMsg = str(
                 fiberspectrograph.AvsReturnError(
                     fiberspectrograph.AvsReturnCode.ERR_INVALID_MEAS_DATA.value,
@@ -367,20 +325,14 @@ class TestFiberSpectrographCsc(
         # Have the PollScan just run forever.
         self.patch.return_value.AVS_PollScan.side_effect = itertools.repeat(0)
 
-        async with self.make_csc(
-            initial_state=salobj.State.ENABLED, config_dir=TEST_CONFIG_DIR
-        ):
+        async with self.make_csc(initial_state=salobj.State.ENABLED, config_dir=TEST_CONFIG_DIR):
             # Check that we are properly in ENABLED at the start.
             await self.assert_next_summary_state(salobj.State.ENABLED)
 
             msg = "Timeout waiting for exposure"
             duration = 0.1
-            with salobj.assertRaisesAckError(
-                ack=salobj.SalRetCode.CMD_FAILED, result_contains=msg
-            ):
-                await self.remote.cmd_expose.set_start(
-                    timeout=STD_TIMEOUT + duration, duration=duration
-                )
+            with salobj.assertRaisesAckError(ack=salobj.SalRetCode.CMD_FAILED, result_contains=msg):
+                await self.remote.cmd_expose.set_start(timeout=STD_TIMEOUT + duration, duration=duration)
             # The exposure state should be Integrating during the exposure.
             await self.check_exposureState(self.remote, ExposureState.INTEGRATING)
             await self.check_exposureState(self.remote, ExposureState.TIMEDOUT)
@@ -390,17 +342,13 @@ class TestFiberSpectrographCsc(
         """Test that we can stop an active exposure, and that the exposureState
         is changed appropriately.
         """
-        async with self.make_csc(
-            initial_state=salobj.State.ENABLED, config_dir=TEST_CONFIG_DIR
-        ):
+        async with self.make_csc(initial_state=salobj.State.ENABLED, config_dir=TEST_CONFIG_DIR):
             # Check that we are properly in ENABLED at the start
             await self.assert_next_summary_state(salobj.State.ENABLED)
 
             duration = 5  # seconds
             task = asyncio.create_task(
-                self.remote.cmd_expose.set_start(
-                    timeout=STD_TIMEOUT + duration, duration=duration
-                )
+                self.remote.cmd_expose.set_start(timeout=STD_TIMEOUT + duration, duration=duration)
             )
             # Wait for the exposure to start integrating.
             await self.check_exposureState(self.remote, ExposureState.INTEGRATING)
@@ -418,9 +366,7 @@ class TestFiberSpectrographCsc(
         destroyed (e.g. via `close_tasks()`), you will see messages like
         `Task was destroyed but it is pending!` in the test output.
         """
-        async with self.make_csc(
-            initial_state=salobj.State.DISABLED, config_dir=TEST_CONFIG_DIR
-        ):
+        async with self.make_csc(initial_state=salobj.State.DISABLED, config_dir=TEST_CONFIG_DIR):
             # Check that we are properly in STANDBY at the start
             await self.assert_next_summary_state(salobj.State.DISABLED)
             await self.check_temperature(

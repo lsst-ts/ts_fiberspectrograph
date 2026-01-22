@@ -11,12 +11,13 @@ build:
   script: {{ PYTHON }} -m pip install --no-deps --ignore-installed .
   entry_points:
   - run_fiberspectrograph = lsst.ts.fiberspectrograph:run_fiberspectrograph
+  string: "py{{ PY_VER | replace('.', '') }}{{ PKG_HASH }}_{{ PKG_BUILDNUM }}"
+  
 
 test:
   requires:
-    - ts-conda-build =0.3
-    - ts-dds
-    - ts-idl {{ idl_version }}
+    - ts-conda-build =0.5
+    - ts-xml {{ xml_version }}
     - ts-salobj {{ salobj_version }}
   source_files:
     - bin
@@ -30,14 +31,10 @@ requirements:
   host:
     - pip
     - python {{ python }}
-    - setuptools
-    - setuptools_scm
-  build:
-    - python {{ python }}
-    - setuptools
-    - setuptools_scm
-    - ts-conda-build =0.3
+    - setuptools >={{setuptools}}
+    - setuptools_scm ={{setuptools_scm}}
   run:
     - python {{ python }}
-    - ts-idl
+    - ts-xml
     - ts-salobj
+    - libusb

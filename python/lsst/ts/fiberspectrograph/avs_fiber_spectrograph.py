@@ -201,9 +201,7 @@ class AvsFiberSpectrograph:
         required_size = _getUIntPointer(n_devices * ctypes.sizeof(AvsIdentity))
         device_list = _getAvsIdentityArrayPointer(n_devices)
 
-        code = self.libavs.AVS_GetList(
-            required_size.contents.value, required_size, device_list
-        )
+        code = self.libavs.AVS_GetList(required_size.contents.value, required_size, device_list)
         assert_avs_code(code, "GetList (device list)")
         device_list = list(device_list)  # unpack the array pointer
         self.log.debug("Found devices: %s", device_list)
@@ -211,8 +209,7 @@ class AvsFiberSpectrograph:
         if serial_number is None:
             if len(device_list) > 1:
                 raise RuntimeError(
-                    "Multiple devices found, but no serial number specified."
-                    f" Attached devices: {device_list}"
+                    f"Multiple devices found, but no serial number specified. Attached devices: {device_list}"
                 )
             device = device_list[0]
         else:
@@ -226,19 +223,13 @@ class AvsFiberSpectrograph:
 
         statusCode = AvsDeviceStatus(struct.unpack("B", device.Status)[0])
         if statusCode != AvsDeviceStatus.USB_AVAILABLE:
-            raise RuntimeError(
-                f"Requested AVS device is already in use: {repr(statusCode)}"
-            )
+            raise RuntimeError(f"Requested AVS device is already in use: {repr(statusCode)}")
 
         self.handle = self.libavs.AVS_Activate(device)
         assert_avs_code(self.handle, "Activate")
         if self.handle == AvsReturnCode.invalidHandle:
-            raise RuntimeError(
-                f"Invalid device handle; cannot activate device {device}."
-            )
-        self.log.info(
-            "Activated connection (handle=%s) with USB device %s.", self.handle, device
-        )
+            raise RuntimeError(f"Invalid device handle; cannot activate device {device}.")
+        self.log.info("Activated connection (handle=%s) with USB device %s.", self.handle, device)
         self.device = device
 
         # store the number of pixels for use when taking exposures.
@@ -306,9 +297,7 @@ class AvsFiberSpectrograph:
         fpga_version = (ctypes.c_ubyte * 16)()
         firmware_version = (ctypes.c_ubyte * 16)()
         library_version = (ctypes.c_ubyte * 16)()
-        code = self.libavs.AVS_GetVersionInfo(
-            self.handle, fpga_version, firmware_version, library_version
-        )
+        code = self.libavs.AVS_GetVersionInfo(self.handle, fpga_version, firmware_version, library_version)
         assert_avs_code(code, "GetVersionInfo")
 
         config = AvsDeviceConfig()
@@ -323,9 +312,7 @@ class AvsFiberSpectrograph:
         voltage = _getFloatPointer()
         code = self.libavs.AVS_GetAnalogIn(self.handle, 0, voltage)
         assert_avs_code(code, "GetAnalogIn")
-        temperature = np.polynomial.polynomial.polyval(
-            voltage.contents.value, config.Temperature_3_m_aFit
-        )
+        temperature = np.polynomial.polynomial.polyval(voltage.contents.value, config.Temperature_3_m_aFit)
 
         def decode(value):
             """Return a byte string decoded to ASCII with NULLs stripped."""
@@ -469,9 +456,7 @@ class AvsFiberSpectrograph:
             await asyncio.sleep(0.01)
 
         self.log.debug("Reading measured data from spectrograph.")
-        time_label = (
-            _getUIntPointer()
-        )  # NOTE: it's not clear from the docs what this is for
+        time_label = _getUIntPointer()  # NOTE: it's not clear from the docs what this is for
         spectrum = (ctypes.c_double * self._n_pixels)()
         code = self.libavs.AVS_GetScopeData(self.handle, time_label, spectrum)
         assert_avs_code(code, "GetScopeData")
@@ -557,9 +542,7 @@ class FrozenMixin:
         structure (mostly in unittests).
         """
         if not hasattr(self, key):
-            raise TypeError(
-                f"{self} is a frozen class; '{key}' is not an already-existing attribute."
-            )
+            raise TypeError(f"{self} is a frozen class; '{key}' is not an already-existing attribute.")
         object.__setattr__(self, key, value)
 
 
@@ -696,9 +679,7 @@ class AvsDeviceConfig(ctypes.Structure, FrozenMixin):
             "OemData",
         ]
         attrs = ", ".join(
-            f"{x[0]}={to_str(getattr(self, x[0]))}"
-            for x in self._fields_
-            if x[0] not in too_long
+            f"{x[0]}={to_str(getattr(self, x[0]))}" for x in self._fields_ if x[0] not in too_long
         )
         return f"AvsDeviceConfig({attrs})"
 
