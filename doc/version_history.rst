@@ -8,6 +8,36 @@ Version History
 
 .. towncrier release notes start
 
+v0.12.0 (2026-01-22)
+====================
+
+New Features
+------------
+
+- Add optional groupId parameter to expose (`DM-44757 <https://rubinobs.atlassian.net//browse/DM-44757>`_)
+
+
+Bug Fixes
+---------
+
+- Update ts-conda-build to 0.4. (`DM-43486 <https://rubinobs.atlassian.net//browse/DM-43486>`_)
+- Remove skip from certain tests. (`DM-43549 <https://rubinobs.atlassian.net//browse/DM-43549>`_)
+- Changed SalIndex enumeration values blue and red to 101 and 102. (`DM-49484 <https://rubinobs.atlassian.net//browse/DM-49484>`_)
+- Added libusb to the conda recipe runtime requirements. (`DM-50241 <https://rubinobs.atlassian.net//browse/DM-50241>`_)
+
+
+Documentation
+-------------
+
+- Add towncrier support. (`DM-43486 <https://rubinobs.atlassian.net//browse/DM-43486>`_)
+
+
+Other Changes and Additions
+---------------------------
+
+- Add your info here (`OSW-1484 <https://rubinobs.atlassian.net//browse/OSW-1484>`_)
+
+
 v0.11.1
 -------
 * Fix fits header information based on list object received from image name service.

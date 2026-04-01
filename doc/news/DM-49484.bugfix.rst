@@ -1,1 +1,0 @@
-Changed SalIndex enumeration values blue and red to 101 and 102.
