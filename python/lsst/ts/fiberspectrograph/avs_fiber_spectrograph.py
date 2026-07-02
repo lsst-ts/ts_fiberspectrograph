@@ -450,7 +450,7 @@ class AvsFiberSpectrograph:
             data_available = self.libavs.AVS_PollScan(self.handle)
             assert_avs_code(data_available, "PollScan")
             if (time.monotonic() - start_time) > self.pollscan_timeout:
-                msg = "Timeout polling for exposure to be ready; waited {self.pollscan_timeout} seconds."
+                msg = f"Timeout polling for exposure to be ready; waited {self.pollscan_timeout} seconds."
                 raise asyncio.TimeoutError(msg)
             # Avantes docs say not to poll too rapidly, or it will overwhelm
             # the spectrograph CPU. They suggest waiting at least 1ms;

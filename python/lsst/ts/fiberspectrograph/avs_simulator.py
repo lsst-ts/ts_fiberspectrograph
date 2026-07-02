@@ -143,11 +143,22 @@ class AvsSimulator:
 
         config["return_value.AVS_PrepareMeasure.side_effect"] = mock_prepareMeasure
 
-        # Measure doesn't have any obvious effects.
-        config["return_value.AVS_Measure.return_value"] = 0
+        self.polls_until_ready = 3
+        self.polls_since_measure = 0
 
-        # Require four polls of the device before a measurement is ready
-        config["return_value.AVS_PollScan.side_effect"] = [0, 0, 0, 1]
+        def mock_measure(handle, a_hWnd, a_Nmsr):
+            self.polls_since_measure = 0
+            return 0
+
+        config["return_value.AVS_Measure.side_effect"] = mock_measure
+
+        def mock_pollScan(handle):
+            if self.polls_since_measure < self.polls_until_ready:
+                self.polls_since_measure += 1
+                return 0
+            return 1
+
+        config["return_value.AVS_PollScan.side_effect"] = mock_pollScan
 
         self.spectrum = np.arange(0, self.n_pixels) * 2
 
