@@ -40,17 +40,25 @@ class AvsSimulator:
 
     This configures the mock for a "no error conditions" use case,
     with all methods behaving as if one device is connected and behaving.
+
+    Parameters
+    ----------
+    serial_number : `str`, optional
+        Serial number of the simulated spectrograph. Defaults to the red
+        spectrograph serial number.
     """
 
-    def __init__(self):
+    def __init__(self, serial_number=None):
         self.mock = None
 
         # This will be passed into the patcher to configure the mock.
         config = dict()
 
-        # Pretend one device is connected: the red spectrograph
+        # Pretend one device is connected.
         self.n_devices = 1
-        self.serial_number = constants.SERIAL_NUMBERS[constants.SalIndex.RED]
+        if serial_number is None:
+            serial_number = constants.SERIAL_NUMBERS[constants.SalIndex.RED]
+        self.serial_number = serial_number
         self.handle = 314159
 
         name = b"Fake Spectrograph"

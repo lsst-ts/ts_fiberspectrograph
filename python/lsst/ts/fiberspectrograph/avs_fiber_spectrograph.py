@@ -217,8 +217,10 @@ class AvsFiberSpectrograph:
                 if serial_number == device.SerialNumber.decode("ascii"):
                     break
             else:
-                msg = f"Device {serial_number=} not found in {device_list=}. "
-                "Check that the component deployed using the correct index?"
+                msg = (
+                    f"Device {serial_number=} not found in {device_list=}. "
+                    "Check that the component deployed using the correct index?"
+                )
                 raise LookupError(msg)
 
         statusCode = AvsDeviceStatus(struct.unpack("B", device.Status)[0])

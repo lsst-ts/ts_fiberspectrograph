@@ -26,6 +26,7 @@ import io
 import pathlib
 
 import astropy.units as u
+
 from lsst.ts import salobj, utils
 from lsst.ts.xml.enums.FiberSpectrograph import ExposureState
 
@@ -187,7 +188,7 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
 
     async def implement_simulation_mode(self, simulation_mode):
         if simulation_mode & constants.SimulationMode.Spectrograph != 0:
-            self._simulator = AvsSimulator()
+            self._simulator = AvsSimulator(serial_number=self.serial_number)
             self._simulator.start()
 
     async def do_expose(self, data):

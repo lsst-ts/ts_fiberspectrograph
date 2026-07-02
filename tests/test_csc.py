@@ -28,6 +28,8 @@ import urllib.parse
 
 import astropy.io.fits
 import pytest
+
+import lsst.ts.fiberspectrograph.csc as fiberspectrograph_csc
 from lsst.ts import fiberspectrograph, salobj
 from lsst.ts.xml.enums.FiberSpectrograph import ExposureState
 
@@ -119,6 +121,27 @@ class TestFiberSpectrographCsc(salobj.BaseCscTestCase, unittest.IsolatedAsyncioT
         ):
             await self.assert_next_summary_state(salobj.State.DISABLED)
             assert self.csc.device.device == id1
+
+    async def test_simulation_mode_uses_index_serial_number(self):
+        """Test that spectrograph simulation uses the indexed serial number."""
+        index = fiberspectrograph.SalIndex.BLUE
+        serial_number = fiberspectrograph.SERIAL_NUMBERS[index]
+
+        async with self.make_csc(
+            initial_state=salobj.State.STANDBY,
+            index=index,
+            config_dir=TEST_CONFIG_DIR,
+        ):
+            simulator = unittest.mock.Mock()
+            with unittest.mock.patch.object(
+                fiberspectrograph_csc,
+                "AvsSimulator",
+                return_value=simulator,
+            ) as mock_simulator_constructor:
+                await self.csc.implement_simulation_mode(fiberspectrograph.SimulationMode.Spectrograph)
+
+            mock_simulator_constructor.assert_called_once_with(serial_number=serial_number)
+            simulator.start.assert_called_once_with()
 
     async def test_enable_fails(self):
         """Test that exceptions raised when connecting cause a fault when
