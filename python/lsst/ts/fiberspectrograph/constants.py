@@ -41,8 +41,10 @@ class SalIndex(enum.IntEnum):
 class SimulationMode(enum.IntFlag):
     """Bitmask values for the CSC simulation mode."""
 
-    Spectrograph = 1
-    S3Server = 2
+    REAL = 0
+    SPECTROGRAPH = enum.auto()
+    S3SERVER = enum.auto()
+    TEST = SPECTROGRAPH | S3SERVER
 
 
 # A short name describing the range of the spectrograph.

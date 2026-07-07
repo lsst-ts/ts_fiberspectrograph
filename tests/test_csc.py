@@ -138,7 +138,7 @@ class TestFiberSpectrographCsc(salobj.BaseCscTestCase, unittest.IsolatedAsyncioT
                 "AvsSimulator",
                 return_value=simulator,
             ) as mock_simulator_constructor:
-                await self.csc.implement_simulation_mode(fiberspectrograph.SimulationMode.Spectrograph)
+                await self.csc.implement_simulation_mode(fiberspectrograph.SimulationMode.SPECTROGRAPH)
 
             mock_simulator_constructor.assert_called_once_with(serial_number=serial_number)
             simulator.start.assert_called_once_with()
@@ -172,7 +172,7 @@ class TestFiberSpectrographCsc(salobj.BaseCscTestCase, unittest.IsolatedAsyncioT
         """
         async with self.make_csc(
             initial_state=salobj.State.ENABLED,
-            simulation_mode=fiberspectrograph.SimulationMode.S3Server,
+            simulation_mode=fiberspectrograph.SimulationMode.S3SERVER,
             index=fiberspectrograph.SalIndex.RED,
             config_dir=TEST_CONFIG_DIR,
         ):
@@ -183,9 +183,11 @@ class TestFiberSpectrographCsc(salobj.BaseCscTestCase, unittest.IsolatedAsyncioT
                 return_value=([1], ["FS1_O_20221130_000001"])
             )
 
-            duration = 2  # seconds
+            duration = 5  # seconds
             task = asyncio.create_task(
-                self.remote.cmd_expose.set_start(timeout=STD_TIMEOUT + duration, duration=duration)
+                self.remote.cmd_expose.set_start(
+                    timeout=STD_TIMEOUT + duration, duration=duration, numExposures=1
+                )
             )
             await self.check_exposureState(self.remote, ExposureState.INTEGRATING)
             # Wait for the exposure to finish.
@@ -236,7 +238,7 @@ class TestFiberSpectrographCsc(salobj.BaseCscTestCase, unittest.IsolatedAsyncioT
         """
         async with self.make_csc(
             initial_state=salobj.State.ENABLED,
-            simulation_mode=fiberspectrograph.SimulationMode.S3Server,
+            simulation_mode=fiberspectrograph.SimulationMode.S3SERVER,
             index=fiberspectrograph.SalIndex.RED,
             config_dir=TEST_CONFIG_DIR,
         ):
@@ -411,7 +413,7 @@ class TestFiberSpectrographCsc(salobj.BaseCscTestCase, unittest.IsolatedAsyncioT
             name="FiberSpectrograph",
             index=-1,
             exe_name="run_fiberspectrograph",
-            cmdline_args=("--simulate", "3"),
+            cmdline_args=("--configdir", str(TEST_CONFIG_DIR), "--simulate", "3"),
         )
 
 
