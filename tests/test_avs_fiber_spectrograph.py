@@ -32,6 +32,7 @@ import unittest.mock
 import astropy.units as u
 import numpy as np
 import pytest
+
 from lsst.ts.fiberspectrograph import (
     AvsDeviceConfig,
     AvsDeviceStatus,
@@ -370,6 +371,21 @@ class TestAvsFiberSpectrograph(unittest.IsolatedAsyncioTestCase):
         assert self.patch.return_value.AVS_PollScan.call_count == 4
         np.testing.assert_array_equal(result[0].to_value(u.nm), self.wavelength)
         np.testing.assert_array_equal(result[1], self.spectrum)
+
+    async def test_expose_twice(self):
+        """Test that the simulator poll sequence resets for each exposure."""
+        duration = 0.1  # seconds
+        spec = AvsFiberSpectrograph()
+
+        result1 = await spec.expose(duration)
+        result2 = await spec.expose(duration)
+
+        assert self.patch.return_value.AVS_Measure.call_count == 2
+        assert self.patch.return_value.AVS_PollScan.call_count == 8
+        np.testing.assert_array_equal(result1[0].to_value(u.nm), self.wavelength)
+        np.testing.assert_array_equal(result1[1], self.spectrum)
+        np.testing.assert_array_equal(result2[0].to_value(u.nm), self.wavelength)
+        np.testing.assert_array_equal(result2[1], self.spectrum)
 
     async def test_expose_raises_if_active_exposure(self):
         """Starting a new exposure while one is currently active should

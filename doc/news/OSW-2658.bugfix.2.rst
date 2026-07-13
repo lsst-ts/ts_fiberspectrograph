@@ -1,0 +1,1 @@
+Fixed repeated FiberSpectrograph simulated exposures by resetting simulator poll state for each measurement.

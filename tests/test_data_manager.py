@@ -25,6 +25,7 @@ import astropy.time
 import astropy.units as u
 import numpy as np
 from astropy.table import QTable
+
 from lsst.ts.fiberspectrograph import DataManager, SpectrographData
 
 

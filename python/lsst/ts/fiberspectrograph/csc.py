@@ -26,6 +26,7 @@ import io
 import pathlib
 
 import astropy.units as u
+
 from lsst.ts import salobj, utils
 from lsst.ts.xml.enums.FiberSpectrograph import ExposureState
 
@@ -33,6 +34,8 @@ from . import __version__, constants, data_manager
 from .avs_fiber_spectrograph import AvsFiberSpectrograph
 from .avs_simulator import AvsSimulator
 from .config_schema import CONFIG_SCHEMA
+
+STD_TIMEOUT = 5  # seconds
 
 
 class FiberSpectrographCsc(salobj.ConfigurableCsc):
@@ -72,11 +75,13 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
     * 20: If there is an error taking an exposure.
     """
 
-    valid_simulation_modes = (0, 1, 2, 3)
+    valid_simulation_modes = tuple(constants.SimulationMode.__members__.values())
     simulation_help = (
         "Simulation mode, a bitmask of 2 values: "
-        "1: simulate the spectrograph; "
-        "2: simulate the s3 large file annex"
+        "0: Run the real hardware."
+        "1: simulate the spectrograph "
+        "2: simulate the s3 large file annex "
+        "3: Simulate the spectrograph and s3 file annex"
     )
     version = __version__
 
@@ -135,7 +140,7 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
         # disabled: connect and send telemetry, but no commands allowed.
         if self.summary_state in (salobj.State.ENABLED, salobj.State.DISABLED):
             if self.s3bucket is None:
-                domock = self.simulation_mode & constants.SimulationMode.S3Server != 0
+                domock = self.simulation_mode & constants.SimulationMode.S3SERVER != 0
                 self.s3bucket = salobj.AsyncS3Bucket(name=self.s3bucket_name, domock=domock, create=domock)
             if self.device is None:
                 try:
@@ -186,8 +191,8 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
             await asyncio.sleep(self.telemetry_interval)
 
     async def implement_simulation_mode(self, simulation_mode):
-        if simulation_mode & constants.SimulationMode.Spectrograph != 0:
-            self._simulator = AvsSimulator()
+        if simulation_mode & constants.SimulationMode.SPECTROGRAPH != 0:
+            self._simulator = AvsSimulator(serial_number=self.serial_number)
             self._simulator.start()
 
     async def do_expose(self, data):
@@ -210,6 +215,7 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
         if msg is not None:
             raise salobj.ExpectedError(msg)
         try:
+            await self.cmd_expose.ack_in_progress(data, timeout=STD_TIMEOUT + data.duration)
             date_begin = utils.astropy_time_from_tai_unix(utils.current_tai())
             task = asyncio.create_task(self.device.expose(data.duration))
             await self.evt_exposureState.set_write(status=ExposureState.INTEGRATING)
@@ -231,7 +237,7 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
                 temperature_setpoint=setpoint,
                 n_pixels=n_pixels,
             )
-        except asyncio.TimeoutError as e:
+        except TimeoutError as e:
             await self.evt_exposureState.set_write(status=ExposureState.TIMEDOUT)
             msg = f"Timeout waiting for exposure: {repr(e)}"
             await self.fault(code=20, report=msg)

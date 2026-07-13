@@ -1,0 +1,1 @@
+Fixed FiberSpectrograph simulation mode to use the CSC index's configured spectrograph serial number.
