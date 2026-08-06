@@ -77,8 +77,8 @@ For a detailed description of what each error code means, consult section ``3.6.
 Simulator
 ---------
 
-The CSC implements a simulator mode using the same `unittest.mock` framework that the tests use to fake a connected spectrograph, via the `~lsst.ts.fiberspectrograph.AvsSimulator` class.
-`~lsst.ts.fiberspectrograph.AvsSimulator` mocks the loading of the ``libavs.so`` C library entirely, so the simulator must be activated before a device is connected, i.e. when the CSC is in STANDBY mode.
+The CSC implements a simulator mode with an in-process implementation of the ``libavs.so`` interface, via the `~lsst.ts.fiberspectrograph.AvsSimulator` class.
+The simulator is injected when the CSC creates its device connection, so it does not patch global library loading or retain telemetry call arguments.
 The simulator is configured for a "no error conditions" use case, where all functions return success codes and reasonable values.
 
 .. _caveats:

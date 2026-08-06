@@ -144,7 +144,11 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
                 self.s3bucket = salobj.AsyncS3Bucket(name=self.s3bucket_name, domock=domock, create=domock)
             if self.device is None:
                 try:
-                    self.device = AvsFiberSpectrograph(serial_number=self.serial_number, log=self.log)
+                    self.device = AvsFiberSpectrograph(
+                        serial_number=self.serial_number,
+                        log=self.log,
+                        libavs=self._simulator,
+                    )
                 except Exception as e:
                     msg = "Failed to connect to fiber spectrograph."
                     await self.fault(code=1, report=f"{msg}: {repr(e)}")
@@ -175,8 +179,6 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
         """
         await super().close_tasks()
         self.telemetry_loop_task.cancel()
-        if self._simulator is not None:
-            self._simulator.stop()
 
     async def telemetry_loop(self):
         """Output telemetry information at regular intervals.
@@ -193,7 +195,6 @@ class FiberSpectrographCsc(salobj.ConfigurableCsc):
     async def implement_simulation_mode(self, simulation_mode):
         if simulation_mode & constants.SimulationMode.SPECTROGRAPH != 0:
             self._simulator = AvsSimulator(serial_number=self.serial_number)
-            self._simulator.start()
 
     async def do_expose(self, data):
         """Take an exposure with the connected spectrograph.

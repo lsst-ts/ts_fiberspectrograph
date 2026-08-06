@@ -20,7 +20,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import asyncio
-import itertools
 import pathlib
 import unittest
 import unittest.mock
@@ -29,7 +28,6 @@ import urllib.parse
 import astropy.io.fits
 import pytest
 
-import lsst.ts.fiberspectrograph.csc as fiberspectrograph_csc
 from lsst.ts import fiberspectrograph, salobj
 from lsst.ts.xml.enums.FiberSpectrograph import ExposureState
 
@@ -40,30 +38,16 @@ TEST_CONFIG_DIR = pathlib.Path(__file__).parent / "data" / "config"
 
 
 class TestFiberSpectrographCsc(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
-    """Test the functionality of the FiberSpectrographCsc, using a mocked
-    spectrograph connection.
-
-    These tests use an instance of `lsst.ts.fiberspectrograph.AvsSimulator`,
-    to mock patch the fiber spectrograph vendor C library.
-    The CSC uses the same simulator class when in ``Spectrograph``
-    simulation mode to simulate the fiber spectrograph, but that simulator
-    is held independently of the mock patch used for testing here.
-    Having the CSC patch the AVS library (when going into simulation mode)
-    separately from the unit test patching the same library allows us to test
-    the functionality of turning simulation mode on and off; we want to treat
-    the use of `unittest.mock` by the CSC simulator as an internal detail.
-    """
+    """Tests of the FiberSpectrograph CSC using its concrete simulator."""
 
     def setUp(self):
-        self.patcher = fiberspectrograph.AvsSimulator()
-        self.patch = self.patcher.start(testCase=self)
         super().setUp()
 
     def basic_make_csc(self, initial_state, config_dir, simulation_mode, index=-1):
         return fiberspectrograph.FiberSpectrographCsc(
             initial_state=initial_state,
             config_dir=config_dir,
-            simulation_mode=simulation_mode,
+            simulation_mode=simulation_mode | fiberspectrograph.SimulationMode.SPECTROGRAPH,
             index=index,
         )
 
@@ -98,29 +82,14 @@ class TestFiberSpectrographCsc(salobj.BaseCscTestCase, unittest.IsolatedAsyncioT
         """Test that changing the index number changes the serial number
         that we attempt to connect to.
         """
-        # Mock two connected devices (we will connect to the second).
-        n_devices = 2
         index = fiberspectrograph.SalIndex.BROAD
         serial_number = fiberspectrograph.SERIAL_NUMBERS[index]
-        id1 = fiberspectrograph.AvsIdentity(
-            bytes(str(serial_number), "ascii"),
-            b"Fake Spectrograph 2",
-            fiberspectrograph.AvsDeviceStatus.USB_AVAILABLE.value,
-        )
-
-        def mock_getList(a_listSize, a_pRequiredSize, a_pList):
-            """Pretend that two devices are connected."""
-            a_pList[:] = [self.patcher.id0, id1]
-            return n_devices
-
-        self.patch.return_value.AVS_GetList.side_effect = mock_getList
-        self.patch.return_value.AVS_UpdateUSBDevices.return_value = n_devices
 
         async with self.make_csc(
             initial_state=salobj.State.DISABLED, index=index, config_dir=TEST_CONFIG_DIR
         ):
             await self.assert_next_summary_state(salobj.State.DISABLED)
-            assert self.csc.device.device == id1
+            assert self.csc.device.device.SerialNumber.decode("ascii") == serial_number
 
     async def test_simulation_mode_uses_index_serial_number(self):
         """Test that spectrograph simulation uses the indexed serial number."""
@@ -132,29 +101,21 @@ class TestFiberSpectrographCsc(salobj.BaseCscTestCase, unittest.IsolatedAsyncioT
             index=index,
             config_dir=TEST_CONFIG_DIR,
         ):
-            simulator = unittest.mock.Mock()
-            with unittest.mock.patch.object(
-                fiberspectrograph_csc,
-                "AvsSimulator",
-                return_value=simulator,
-            ) as mock_simulator_constructor:
-                await self.csc.implement_simulation_mode(fiberspectrograph.SimulationMode.SPECTROGRAPH)
-
-            mock_simulator_constructor.assert_called_once_with(serial_number=serial_number)
-            simulator.start.assert_called_once_with()
+            await self.csc.implement_simulation_mode(fiberspectrograph.SimulationMode.SPECTROGRAPH)
+            assert self.csc._simulator.serial_number == serial_number
 
     async def test_enable_fails(self):
         """Test that exceptions raised when connecting cause a fault when
         switching the CSC from STANDBY to DISABLED.
         """
-        self.patch.return_value.AVS_Activate.return_value = (
-            fiberspectrograph.AvsReturnCode.invalidHandle.value
-        )
         async with self.make_csc(initial_state=salobj.State.STANDBY, config_dir=TEST_CONFIG_DIR):
             # Check that we are properly in STANDBY at the start
             await self.assert_next_summary_state(salobj.State.STANDBY)
             error = await self.assert_next_sample(
                 topic=self.remote.evt_errorCode, errorCode=0, errorReport=""
+            )
+            self.csc._simulator.return_codes["AVS_Activate"] = (
+                fiberspectrograph.AvsReturnCode.invalidHandle.value
             )
 
             msg = "Failed to connect"
@@ -304,15 +265,14 @@ class TestFiberSpectrographCsc(salobj.BaseCscTestCase, unittest.IsolatedAsyncioT
         # Make `GetScopeData` (which is called to get the measured output from
         # the device) return an error code, so that the device controller
         # raises an exception inside `expose()`.
-        self.patch.return_value.AVS_GetScopeData.side_effect = None
-        self.patch.return_value.AVS_GetScopeData.return_value = (
-            fiberspectrograph.AvsReturnCode.ERR_INVALID_MEAS_DATA.value
-        )
         async with self.make_csc(initial_state=salobj.State.ENABLED, config_dir=TEST_CONFIG_DIR):
             # Check that we are properly in ENABLED at the start.
             await self.assert_next_summary_state(salobj.State.ENABLED)
             error = await self.assert_next_sample(
                 topic=self.remote.evt_errorCode, errorCode=0, errorReport=""
+            )
+            self.csc._simulator.return_codes["AVS_GetScopeData"] = (
+                fiberspectrograph.AvsReturnCode.ERR_INVALID_MEAS_DATA.value
             )
 
             msg = "Failed to take exposure"
@@ -347,12 +307,10 @@ class TestFiberSpectrographCsc(salobj.BaseCscTestCase, unittest.IsolatedAsyncioT
         """Test that an exposure whose read times out puts us in FAULT and
         exposureState is set to TIMEOUT.
         """
-        # Have the PollScan just run forever.
-        self.patch.return_value.AVS_PollScan.side_effect = itertools.repeat(0)
-
         async with self.make_csc(initial_state=salobj.State.ENABLED, config_dir=TEST_CONFIG_DIR):
             # Check that we are properly in ENABLED at the start.
             await self.assert_next_summary_state(salobj.State.ENABLED)
+            self.csc._simulator.polls_until_ready = float("inf")
 
             msg = "Timeout waiting for exposure"
             duration = 0.1
@@ -396,8 +354,8 @@ class TestFiberSpectrographCsc(salobj.BaseCscTestCase, unittest.IsolatedAsyncioT
             await self.assert_next_summary_state(salobj.State.DISABLED)
             await self.check_temperature(
                 self.remote,
-                self.patcher.temperature,
-                self.patcher.temperature_setpoint,
+                self.csc._simulator.temperature,
+                self.csc._simulator.temperature_setpoint,
             )
 
             # If we leave DISABLED, the telemetry loop should be closed.
