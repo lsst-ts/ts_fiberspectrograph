@@ -125,6 +125,9 @@ class AvsFiberSpectrograph:
     log_to_stdout : `bool`
         Send all log info from DEBUG up to stdout. Useful when debugging the
         spectrograph in a python terminal.
+    libavs : optional
+        An object implementing the AVS library interface. If omitted, load the
+        vendor-provided shared library.
 
     Raises
     ------
@@ -143,7 +146,7 @@ class AvsFiberSpectrograph:
     """`AvsIdentityType` of the connected spectrograph.
     """
 
-    def __init__(self, serial_number=None, log=None, log_to_stdout=False):
+    def __init__(self, serial_number=None, log=None, log_to_stdout=False, libavs=None):
         if log is None:
             self.log = logging.getLogger("FiberSpectrograph")
         else:
@@ -164,12 +167,13 @@ class AvsFiberSpectrograph:
         self._expose_task = asyncio.Future()
         self._expose_task.set_result(None)
 
-        self.libavs = ctypes.CDLL(LIBRARY_PATH)
+        self.libavs = ctypes.CDLL(LIBRARY_PATH) if libavs is None else libavs
 
         # NOTE: AVS_Init(0) initializes the USB library, not device 0.
         self.libavs.AVS_Init(0)
 
-        self._configure_ctypes()
+        if libavs is None:
+            self._configure_ctypes()
 
         self._connect(serial_number)
 
